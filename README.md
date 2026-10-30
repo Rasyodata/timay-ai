@@ -21,7 +21,7 @@ npm run desktop   # Electron penceresini açar
 npm test          # onay akışı testleri
 ```
 
-Masaüstü uygulaması varsayılan olarak `http://localhost:4000` sunucusuna bağlanır. Adres giriş ekranındaki "Sunucu: … Değiştir" bağlantısından değiştirilebilir.
+Masaüstü uygulaması geliştirme sırasında `http://localhost:4000`, kurulum dosyasında ise `https://timay-sunucu.onrender.com` sunucusuna bağlanır. Adres giriş ekranındaki "Sunucu: … Değiştir" bağlantısından değiştirilebilir.
 
 ## Sunucuyu internete kurma (Render)
 
