@@ -5,6 +5,7 @@ import { CasesView, CaseView } from './Cases';
 import { ConsultancyClientView, ConsultancyView } from './Consultancy';
 import { ContractsView, ContractView } from './Contracts';
 import { DashboardView } from './Dashboard';
+import { DeadlinesView } from './Deadlines';
 import { EstatesView, EstateView } from './Estates';
 import { EnforcementFileView, EnforcementView } from './Enforcement';
 import { FinanceView } from './Finance';
@@ -29,6 +30,7 @@ export type View =
   | { name: 'enforcement-file'; id: number }
   | { name: 'consultancy' }
   | { name: 'estates' }
+  | { name: 'deadlines'; tab?: string }
   | { name: 'estate'; id: number }
   | { name: 'consultancy-client'; id: number }
   | { name: 'decisions' }
@@ -206,6 +208,7 @@ const NAV: { section: string; items: { name: View['name']; label: string; icon: 
       { name: 'dashboard', label: 'Ana sayfa', icon: 'home' },
       { name: 'agenda', label: 'Ajanda', icon: 'calendar' },
       { name: 'tasks', label: 'Görevler', icon: 'check' },
+      { name: 'deadlines', label: 'Süreler ve riskler', icon: 'shield' },
     ],
   },
   {
@@ -294,6 +297,9 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
       break;
     case 'consultancy-client':
       content = <ConsultancyClientView id={view.id} go={go} />;
+      break;
+    case 'deadlines':
+      content = <DeadlinesView go={go} initialTab={view.tab} />;
       break;
     case 'estates':
       content = <EstatesView go={go} />;

@@ -84,7 +84,7 @@ export interface Task {
 }
 
 export interface AgendaEvent {
-  kind: 'durusma' | 'gorev' | 'taahhut' | 'sozlesme' | 'not';
+  kind: 'durusma' | 'sure' | 'gorev' | 'taahhut' | 'sozlesme' | 'not';
   id: number;
   date: string;
   time: string;
@@ -264,6 +264,40 @@ export interface EstateDetail extends Omit<EstateSummary, 'heir_count' | 'net_ku
   group: string;
   warnings: string[];
   deadlines: { title: string; date: string; note: string }[];
+}
+
+export interface DeadlineRule {
+  id: string;
+  group: string;
+  title: string;
+  amount: number;
+  unit: 'gun' | 'hafta' | 'ay' | 'yil';
+  start: string;
+  basis: string;
+  judicial: boolean;
+  businessDay: boolean;
+}
+
+export interface LegalDeadline {
+  id: number;
+  case_id: number | null;
+  case_title: string | null;
+  title: string;
+  rule_id: string;
+  start_date: string;
+  due_date: string;
+  basis: string;
+  note: string;
+  done: number;
+  responsible_name: string | null;
+}
+
+export interface Risk {
+  level: 'yuksek' | 'orta';
+  area: string;
+  title: string;
+  detail: string;
+  link: { view: string; id?: number } | null;
 }
 
 export interface PetitionSummary {

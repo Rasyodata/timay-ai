@@ -10,6 +10,7 @@ import * as finance from './finance.ts';
 import * as tasks from './tasks.ts';
 import { getTemplate, listAreas } from './templates.ts';
 import { checkCitations } from './citations.ts';
+import * as deadlines from './deadlines.ts';
 import type { DB } from './db.ts';
 import { searchDecisions, upsertDecision } from './decisions.ts';
 import { ApiError } from './errors.ts';
@@ -133,6 +134,14 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null } 
   app.put('/api/heirs/:id', authed((req, user) => estates.updateHeir(db, user, id(req), req.body)));
   app.delete('/api/heirs/:id', authed((req, user) => estates.deleteHeir(db, user, id(req))));
   app.delete('/api/estate-items/:id', authed((req, user) => estates.deleteItem(db, user, id(req))));
+
+  app.get('/api/deadline-rules', authed(() => deadlines.RULES));
+  app.post('/api/deadlines/calculate', authed((req) => deadlines.calculate(req.body)));
+  app.get('/api/deadlines', authed((req, user) => deadlines.listDeadlines(db, user, req.query as Record<string, string>)));
+  app.post('/api/deadlines', authed((req, user) => deadlines.createDeadline(db, user, req.body)));
+  app.put('/api/deadlines/:id', authed((req, user) => deadlines.setDeadlineDone(db, user, id(req), Boolean(req.body.done))));
+  app.delete('/api/deadlines/:id', authed((req, user) => deadlines.deleteDeadline(db, user, id(req))));
+  app.get('/api/risks', authed((_req, user) => deadlines.risks(db, user)));
 
   app.get('/api/decisions', authed((req) => searchDecisions(db, String(req.query.q ?? ''))));
   app.post(

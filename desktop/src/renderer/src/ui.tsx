@@ -161,7 +161,8 @@ export type IconName =
   | 'search'
   | 'trend'
   | 'briefcase'
-  | 'tree';
+  | 'tree'
+  | 'shield';
 
 const PATHS: Record<IconName, string> = {
   home: 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
@@ -184,6 +185,7 @@ const PATHS: Record<IconName, string> = {
   search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM21 21l-5-5',
   trend: 'M3 17l6-6 4 4 8-8M15 7h6v6',
   briefcase: 'M3 8h18v12H3zM8 8V5h8v3M3 13h18',
+  shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4',
   tree: 'M12 3v6M12 9H6v5M12 9h6v5M6 14v3M18 14v3M4 17h4v4H4zM16 17h4v4h-4zM10 3h4',
 };
 

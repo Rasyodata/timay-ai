@@ -5,6 +5,7 @@ import { Card, DueLabel, Empty, ErrorText, Field, formatDate, Icon, PageHeader, 
 
 const KIND_LABEL: Record<AgendaEvent['kind'], string> = {
   durusma: 'Duruşma',
+  sure: 'Yasal süre',
   gorev: 'Görev',
   taahhut: 'Taahhüt',
   sozlesme: 'Sözleşme',
@@ -50,6 +51,7 @@ export function AgendaView({ go }: { go: Go }) {
     if (e.caseId && e.kind === 'durusma') go({ name: 'case', id: e.caseId, tab: 'durusmalar' });
     else if (e.contractId) go({ name: 'contract', id: e.contractId });
     else if (e.kind === 'gorev') go({ name: 'tasks' });
+    else if (e.kind === 'sure') go({ name: 'deadlines' });
     else if (e.caseId) go({ name: 'case', id: e.caseId });
   }
 

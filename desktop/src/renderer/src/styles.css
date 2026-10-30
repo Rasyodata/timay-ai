@@ -1890,3 +1890,61 @@ td label.ack {
   display: inline-flex;
   font-size: 12.5px;
 }
+
+/* Önleyici hukuk */
+.risk-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--warn);
+}
+
+.risk-dot.yuksek {
+  background: var(--bad);
+  box-shadow: 0 0 0 4px var(--bad-soft);
+}
+
+.risk-list .risk-level {
+  float: none;
+}
+
+.alert-card {
+  border-color: #f2c2bd;
+  border-left: 4px solid var(--bad);
+}
+
+.calc-result {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.big-date {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+}
+
+.warning.small {
+  font-size: 12.5px;
+}
+
+.cal-event.sure,
+.tag.sure {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
+.legend .dot.sure {
+  background: var(--bad);
+}
+
+.card.flush > .items {
+  margin: 0;
+}
+
+.card.flush > .items li:first-child {
+  border-top: none;
+}

@@ -270,6 +270,22 @@ CREATE TABLE IF NOT EXISTS estate_items (
   title TEXT NOT NULL,
   value_kurus INTEGER NOT NULL DEFAULT 0
 );
+-- Önleyici hukuk: yasal süre takibi.
+CREATE TABLE IF NOT EXISTS legal_deadlines (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  case_id INTEGER REFERENCES cases(id),
+  title TEXT NOT NULL,
+  rule_id TEXT NOT NULL DEFAULT '',
+  start_date TEXT NOT NULL DEFAULT '',
+  due_date TEXT NOT NULL,
+  basis TEXT NOT NULL DEFAULT '',
+  note TEXT NOT NULL DEFAULT '',
+  done INTEGER NOT NULL DEFAULT 0,
+  responsible_id INTEGER REFERENCES users(id),
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 -- Ajanda (dava defteri): avukatın kendi notları ve randevuları.
 CREATE TABLE IF NOT EXISTS agenda_items (
   id INTEGER PRIMARY KEY,

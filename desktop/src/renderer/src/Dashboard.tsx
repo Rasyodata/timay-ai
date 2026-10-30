@@ -1,5 +1,6 @@
-import { api, STATUS_LABEL, type Dashboard, type User } from './api';
+import { api, STATUS_LABEL, type Dashboard, type Risk, type User } from './api';
 import type { Go } from './App';
+import { riskLink } from './Deadlines';
 import { Card, DueLabel, Empty, ErrorText, formatDate, formatTL, PageHeader, Stat, useAsync } from './ui';
 
 function greeting() {
@@ -9,6 +10,8 @@ function greeting() {
 
 export function DashboardView({ user, go }: { user: User; go: Go }) {
   const { data, error } = useAsync(() => api<Dashboard>('/dashboard'), []);
+  const risks = useAsync(() => api<Risk[]>('/risks'), []).data ?? [];
+  const urgent = risks.filter((r) => r.level === 'yuksek');
   const dateText = new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   return (
@@ -28,6 +31,29 @@ export function DashboardView({ user, go }: { user: User; go: Go }) {
       <ErrorText error={error} />
       {data && (
         <>
+          {urgent.length > 0 && (
+            <Card
+              title={`Acil risk uyarıları (${urgent.length})`}
+              className="alert-card"
+              actions={<button className="link" onClick={() => go({ name: 'deadlines' })}>Tümünü gör</button>}
+            >
+              <ul className="items">
+                {urgent.slice(0, 4).map((r, i) => {
+                  const to = riskLink(r);
+                  return (
+                    <li key={i} className={to ? 'clickable' : ''} onClick={() => to && go(to)}>
+                      <span className="risk-dot yuksek" />
+                      <span className="tag">{r.area}</span>
+                      <span className="item-text">
+                        <strong>{r.title}</strong>
+                        <span>{r.detail}</span>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
+          )}
           <div className="stats">
             <Stat icon="folder" label="Açık dava dosyası" value={data.counts.openCases} onClick={() => go({ name: 'cases' })} />
             <Stat icon="clock" label="Onay bekleyen dilekçe" value={data.counts.inReview} tone="amber" />
