@@ -1,0 +1,14 @@
+{
+  "name": "timay-ai",
+  "private": true,
+  "workspaces": [
+    "server",
+    "desktop"
+  ],
+  "scripts": {
+    "server": "npm run dev -w server",
+    "desktop": "npm run dev -w desktop",
+    "test": "npm test -w server",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w desktop"
+  }
+}

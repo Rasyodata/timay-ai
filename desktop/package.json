@@ -1,0 +1,44 @@
+{
+  "name": "@timay-ai/desktop",
+  "productName": "Timay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Avukat onaylı yapay zekâ hukuk asistanı",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit",
+    "dist:win": "electron-vite build && electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "electron": "^45.1.0",
+    "electron-builder": "^26.18.0",
+    "electron-vite": "^6.0.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "typescript": "^5.8.3",
+    "vite": "^8.3.5"
+  },
+  "build": {
+    "appId": "com.rasyodata.timay",
+    "productName": "Timay",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "language": "1055"
+    }
+  }
+}
