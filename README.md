@@ -21,7 +21,15 @@ npm run desktop   # Electron penceresini açar
 npm test          # onay akışı testleri
 ```
 
-Masaüstü uygulaması varsayılan olarak `http://localhost:4000` sunucusuna bağlanır; başka bir sunucu için `TIMAY_SERVER_URL` ortam değişkenini verin.
+Masaüstü uygulaması varsayılan olarak `http://localhost:4000` sunucusuna bağlanır. Adres giriş ekranındaki "Sunucu: … Değiştir" bağlantısından değiştirilebilir.
+
+## Sunucuyu internete kurma (Render)
+
+1. [render.com](https://render.com) üzerinde GitHub hesabıyla oturum açın.
+2. **New → Blueprint** seçin ve `timay-ai` deposunu gösterin. Render, depodaki `render.yaml` dosyasına göre sunucuyu ve 1 GB'lık veri diskini kurar.
+3. Kurulum bitince verilen adresi (ör. `https://timay-sunucu.onrender.com`) GitHub'da depo **Settings → Secrets and variables → Actions → Variables** bölümüne `TIMAY_SERVER_URL` adıyla ekleyin. Bundan sonra üretilen Windows kurulum dosyaları bu adrese otomatik bağlanır.
+
+Sunucu `Dockerfile` ile her yerde çalışır; Türkiye'deki bir sunucuya taşımak için aynı imaj kullanılabilir. Veriler `DB_FILE` (varsayılan `/data/timay.db`) dosyasında tutulur.
 
 ## Windows kurulum dosyası
 

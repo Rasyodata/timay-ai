@@ -1,7 +1,15 @@
-declare global {
-  interface Window {
-    timay: { serverUrl: string };
-  }
+// Sunucu adresi: kullanıcının girişte seçtiği adres, yoksa derleme sırasında verilen
+// VITE_TIMAY_SERVER_URL, o da yoksa yerel geliştirme sunucusu.
+const DEFAULT_SERVER_URL = import.meta.env.VITE_TIMAY_SERVER_URL || 'http://localhost:4000';
+
+export function getServerUrl(): string {
+  return localStorage.getItem('timay-server') || DEFAULT_SERVER_URL;
+}
+
+export function setServerUrl(value: string) {
+  const clean = value.trim().replace(/\/+$/, '');
+  if (!clean || clean === DEFAULT_SERVER_URL) localStorage.removeItem('timay-server');
+  else localStorage.setItem('timay-server', clean);
 }
 
 export type Role = 'avukat' | 'stajyer';
@@ -89,7 +97,7 @@ export function hasToken() {
 export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${window.timay.serverUrl}/api${path}`, {
+    res = await fetch(`${getServerUrl()}/api${path}`, {
       method: init.method ?? (init.body === undefined ? 'GET' : 'POST'),
       headers: {
         'content-type': 'application/json',

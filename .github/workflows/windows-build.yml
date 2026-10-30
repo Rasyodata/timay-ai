@@ -21,6 +21,13 @@ jobs:
       - run: npm run typecheck
       - run: npm test
 
+  docker:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker build -t timay-sunucu .
+
   windows:
     needs: test
     runs-on: windows-latest
@@ -32,6 +39,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run dist:win -w desktop
+        env:
+          VITE_TIMAY_SERVER_URL: ${{ vars.TIMAY_SERVER_URL }}
       - uses: actions/upload-artifact@v4
         with:
           name: Timay-Windows-Kurulum
