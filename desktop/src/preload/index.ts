@@ -1,5 +1,2 @@
-import { contextBridge } from 'electron';
-
-contextBridge.exposeInMainWorld('timay', {
-  serverUrl: process.env.TIMAY_SERVER_URL ?? 'http://localhost:4000',
-});
+// Arayüz şu an Electron API'lerine ihtiyaç duymuyor; dosya ileride (ör. Word'de açma) için duruyor.
+export {};

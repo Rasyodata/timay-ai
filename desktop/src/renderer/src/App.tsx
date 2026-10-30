@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import {
   api,
   ApiError,
+  getServerUrl,
   hasToken,
+  setServerUrl,
   setToken,
   STATUS_LABEL,
   type CaseDetail,
@@ -69,6 +71,8 @@ function AuthScreen({ onLogin }: { onLogin: (u: User) => void }) {
   const [mode, setMode] = useState<'login' | 'register' | 'invite'>('login');
   const [form, setForm] = useState({ officeName: '', name: '', email: '', password: '', token: '' });
   const [error, setError] = useState<string | null>(null);
+  const [server, setServer] = useState(getServerUrl());
+  const [editingServer, setEditingServer] = useState(false);
   const field = (key: keyof typeof form) => ({
     value: form[key],
     onChange: (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value }),
@@ -135,6 +139,28 @@ function AuthScreen({ onLogin }: { onLogin: (u: User) => void }) {
         <button className="primary" type="submit">
           {mode === 'login' ? 'Giriş yap' : mode === 'register' ? 'Büroyu oluştur' : 'Hesabı oluştur'}
         </button>
+        {editingServer ? (
+          <div className="row server">
+            <input value={server} onChange={(e) => setServer(e.target.value)} placeholder="https://" />
+            <button
+              type="button"
+              onClick={() => {
+                setServerUrl(server);
+                setServer(getServerUrl());
+                setEditingServer(false);
+              }}
+            >
+              Kaydet
+            </button>
+          </div>
+        ) : (
+          <p className="muted small server">
+            Sunucu: {server}{' '}
+            <button type="button" className="link" onClick={() => setEditingServer(true)}>
+              Değiştir
+            </button>
+          </p>
+        )}
       </form>
     </div>
   );

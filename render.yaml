@@ -1,0 +1,16 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: timay-sunucu
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: DB_FILE
+        value: /data/timay.db
+    disk:
+      name: timay-veri
+      mountPath: /data
+      sizeGB: 1

@@ -1,0 +1,7 @@
+node_modules
+**/node_modules
+desktop/out
+desktop/dist
+*.db
+*.db-*
+.git
