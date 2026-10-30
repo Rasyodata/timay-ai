@@ -10,6 +10,9 @@ services:
     envVars:
       - key: DB_FILE
         value: /data/timay.db
+      # Derin teyit (Claude) için; Render panelinde elle girilir, depoda tutulmaz.
+      - key: ANTHROPIC_API_KEY
+        sync: false
     disk:
       name: timay-veri
       mountPath: /data

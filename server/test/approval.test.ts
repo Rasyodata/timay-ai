@@ -29,6 +29,13 @@ describe('atıf ayrıştırma', () => {
   });
 });
 
+/** İnceleyenin sarı/gri dayanakların hepsini kontrol ettiğini işaretler. */
+function ackAll(db: DB, user: auth.User, petitionId: number) {
+  for (const item of petitions.getPetition(db, user, petitionId).teyit.items) {
+    if (item.status === 'sari' || item.status === 'gri') petitions.ackItem(db, user, petitionId, { key: item.key, checked: true });
+  }
+}
+
 describe('onay akışı', () => {
   let db: DB;
   let author: auth.User;
@@ -55,6 +62,7 @@ describe('onay akışı', () => {
 
   it('başka bir avukatın onayıyla Onaylı olur', () => {
     petitions.submitForReview(db, author, petitionId);
+    ackAll(db, reviewer, petitionId);
     const result = petitions.review(db, reviewer, petitionId, { action: 'approve' });
     assert.equal(result.status, 'onayli');
     assert.equal(result.reviews.length, 1);
@@ -94,6 +102,7 @@ describe('onay akışı', () => {
   it('incelemedeki ve onaylı dilekçe değiştirilemez', () => {
     petitions.submitForReview(db, author, petitionId);
     rejects(() => petitions.saveVersion(db, author, petitionId, 'yeni'), 409);
+    ackAll(db, reviewer, petitionId);
     petitions.review(db, reviewer, petitionId, { action: 'approve' });
     rejects(() => petitions.saveVersion(db, author, petitionId, 'yeni'), 409);
   });

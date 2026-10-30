@@ -312,3 +312,122 @@ button.link {
   text-decoration: underline;
   font-size: inherit;
 }
+
+/* Teyit renkleri */
+.editor.highlighted {
+  white-space: pre-wrap;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  background: var(--panel);
+  overflow: auto;
+}
+
+mark.teyit {
+  border-radius: 3px;
+  padding: 0 2px;
+  color: inherit;
+  cursor: help;
+}
+
+mark.teyit.yesil {
+  background: #d7f0d9;
+  border-bottom: 2px solid var(--ok);
+}
+
+mark.teyit.sari {
+  background: #fdf0c8;
+  border-bottom: 2px solid #d4a017;
+}
+
+mark.teyit.kirmizi {
+  background: #f9d6d6;
+  border-bottom: 2px solid var(--bad);
+}
+
+mark.teyit.gri {
+  background: #e7e6e3;
+  border-bottom: 2px solid var(--muted);
+}
+
+.teyit-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.chip {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.chip.yesil,
+.dot.yesil {
+  background: #d7f0d9;
+  color: var(--ok);
+}
+
+.chip.sari,
+.dot.sari {
+  background: #fdf0c8;
+  color: #8a6400;
+}
+
+.chip.kirmizi,
+.dot.kirmizi {
+  background: #f9d6d6;
+  color: var(--bad);
+}
+
+.chip.gri,
+.dot.gri {
+  background: #e7e6e3;
+  color: var(--muted);
+}
+
+.teyit-head {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+}
+
+.teyit-item .quote {
+  font-family: 'Times New Roman', serif;
+}
+
+label.ack {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 0;
+  color: var(--text);
+}
+
+.approval-record {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--ok);
+  border-radius: 8px;
+  background: #eef7ef;
+}
+
+.section-gap {
+  margin-top: 24px;
+}
+
+input.full {
+  width: 100%;
+  margin-bottom: 8px;
+}

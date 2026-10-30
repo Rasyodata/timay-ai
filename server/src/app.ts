@@ -5,11 +5,14 @@ import { checkCitations } from './citations.ts';
 import type { DB } from './db.ts';
 import { searchDecisions, upsertDecision } from './decisions.ts';
 import { ApiError } from './errors.ts';
+import * as opposing from './opposing.ts';
 import * as petitions from './petitions.ts';
+import type { DeepChecker } from './teyit.ts';
 
 type Handler = (req: Request, user: auth.User) => unknown;
 
-export function createApp(db: DB) {
+export function createApp(db: DB, options: { deepChecker?: DeepChecker | null } = {}) {
+  const checker = options.deepChecker ?? null;
   const app = express();
   app.use(express.json({ limit: '5mb' }));
   // Masaüstü uygulaması file:// kökeninden istek atar; kimlik doğrulama çerezle değil
@@ -26,13 +29,13 @@ export function createApp(db: DB) {
   });
 
   const open = (fn: (req: Request) => unknown) => (req: Request, res: Response) => res.json(fn(req));
-  const authed = (fn: Handler) => (req: Request, res: Response) => {
+  const authed = (fn: Handler) => async (req: Request, res: Response) => {
     const token = req.header('authorization')?.replace(/^Bearer /, '');
-    res.json(fn(req, auth.userFromToken(db, token)));
+    res.json(await fn(req, auth.userFromToken(db, token)));
   };
   const id = (req: Request, name = 'id') => Number(req.params[name]);
 
-  app.get('/api/health', (_req, res) => res.json({ ok: true }));
+  app.get('/api/health', (_req, res) => res.json({ ok: true, deepTeyit: checker !== null }));
 
   app.post('/api/register', open((req) => auth.registerOffice(db, req.body)));
   app.post('/api/login', open((req) => auth.login(db, req.body)));
@@ -46,12 +49,18 @@ export function createApp(db: DB) {
   app.get('/api/cases/:id', authed((req, user) => cases.getCase(db, user, id(req))));
   app.put('/api/cases/:id', authed((req, user) => cases.updateCase(db, user, id(req), req.body)));
   app.get('/api/cases/:id/petitions', authed((req, user) => petitions.listPetitions(db, user, id(req))));
+  app.get('/api/cases/:id/opposing', authed((req, user) => opposing.listOpposing(db, user, id(req))));
+  app.post('/api/cases/:id/opposing', authed((req, user) => opposing.createOpposing(db, user, id(req), req.body)));
+  app.get('/api/opposing/:id', authed((req, user) => opposing.getOpposing(db, user, id(req))));
+  app.post('/api/opposing/:id/teyit/deep', authed((req, user) => opposing.deepCheckOpposing(db, user, id(req), checker)));
 
   app.post('/api/petitions', authed((req, user) => petitions.createPetition(db, user, req.body)));
   app.get('/api/petitions/:id', authed((req, user) => petitions.getPetition(db, user, id(req))));
   app.post('/api/petitions/:id/versions', authed((req, user) => petitions.saveVersion(db, user, id(req), req.body.body)));
   app.post('/api/petitions/:id/submit', authed((req, user) => petitions.submitForReview(db, user, id(req))));
   app.post('/api/petitions/:id/review', authed((req, user) => petitions.review(db, user, id(req), req.body)));
+  app.post('/api/petitions/:id/teyit/ack', authed((req, user) => petitions.ackItem(db, user, id(req), req.body)));
+  app.post('/api/petitions/:id/teyit/deep', authed((req, user) => petitions.deepCheck(db, user, id(req), checker)));
 
   app.get('/api/decisions', authed((req) => searchDecisions(db, String(req.query.q ?? ''))));
   app.post(
