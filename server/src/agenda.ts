@@ -4,7 +4,7 @@ import { ApiError } from './errors.ts';
 import { DATE, ownedCaseId } from './money.ts';
 
 export interface AgendaEvent {
-  kind: 'durusma' | 'gorev' | 'taahhut' | 'sozlesme' | 'not';
+  kind: 'durusma' | 'sure' | 'gorev' | 'taahhut' | 'sozlesme' | 'not';
   id: number;
   date: string;
   time: string;
@@ -39,6 +39,22 @@ export function agenda(db: DB, user: User, query: { from?: string; to?: string }
       title: `Duruşma: ${r.title}`,
       detail: [r.court, r.esas_no, r.place, r.note].filter(Boolean).join(' · '),
       caseId: r.case_id as number,
+      contractId: null,
+    })),
+    ...rows(
+      `SELECT d.id, d.due_date, d.title, d.basis, d.case_id, k.title AS case_title FROM legal_deadlines d
+       LEFT JOIN cases k ON k.id = d.case_id WHERE d.office_id = ? AND d.done = 0 AND d.due_date BETWEEN ? AND ?`,
+      o,
+      from,
+      to,
+    ).map((r) => ({
+      kind: 'sure' as const,
+      id: r.id as number,
+      date: r.due_date as string,
+      time: '',
+      title: `Süre: ${r.title}`,
+      detail: [r.case_title, r.basis].filter(Boolean).join(' · '),
+      caseId: (r.case_id as number) ?? null,
       contractId: null,
     })),
     ...rows(

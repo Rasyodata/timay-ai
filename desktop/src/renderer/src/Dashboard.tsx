@@ -1,5 +1,6 @@
-import { api, STATUS_LABEL, type Dashboard, type User } from './api';
+import { api, STATUS_LABEL, type Dashboard, type Risk, type User } from './api';
 import type { Go } from './App';
+import { riskLink } from './Deadlines';
 import { Card, DueLabel, Empty, ErrorText, formatDate, formatTL, PageHeader, Stat, useAsync } from './ui';
 
 function greeting() {
@@ -9,6 +10,8 @@ function greeting() {
 
 export function DashboardView({ user, go }: { user: User; go: Go }) {
   const { data, error } = useAsync(() => api<Dashboard>('/dashboard'), []);
+  const risks = useAsync(() => api<Risk[]>('/risks'), []).data ?? [];
+  const urgent = risks.filter((r) => r.level === 'yuksek');
   const dateText = new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   return (
@@ -28,12 +31,36 @@ export function DashboardView({ user, go }: { user: User; go: Go }) {
       <ErrorText error={error} />
       {data && (
         <>
+          {urgent.length > 0 && (
+            <Card
+              title={`Acil risk uyarıları (${urgent.length})`}
+              className="alert-card"
+              actions={<button className="link" onClick={() => go({ name: 'deadlines' })}>Tümünü gör</button>}
+            >
+              <ul className="items">
+                {urgent.slice(0, 4).map((r, i) => {
+                  const to = riskLink(r);
+                  return (
+                    <li key={i} className={to ? 'clickable' : ''} onClick={() => to && go(to)}>
+                      <span className="risk-dot yuksek" />
+                      <span className="tag">{r.area}</span>
+                      <span className="item-text">
+                        <strong>{r.title}</strong>
+                        <span>{r.detail}</span>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
+          )}
           <div className="stats">
             <Stat icon="folder" label="Açık dava dosyası" value={data.counts.openCases} onClick={() => go({ name: 'cases' })} />
             <Stat icon="clock" label="Onay bekleyen dilekçe" value={data.counts.inReview} tone="amber" />
             <Stat icon="check" label="Onaylı dilekçe" value={data.counts.approved} tone="green" />
             <Stat icon="contract" label="Yürürlükteki sözleşme" value={data.counts.activeContracts} tone="violet" onClick={() => go({ name: 'contracts' })} />
             <Stat icon="gavel" label="Açık icra takibi" value={data.counts.openEnforcement} tone="red" onClick={() => go({ name: 'enforcement' })} />
+{!data.month.hidden && (
             <Stat
               icon="trend"
               label="Bu ay kâr"
@@ -41,6 +68,7 @@ export function DashboardView({ user, go }: { user: User; go: Go }) {
               tone={data.month.profit >= 0 ? 'green' : 'red'}
               onClick={() => go({ name: 'finance' })}
             />
+            )}
           </div>
 
           <div className="grid-3">
@@ -66,8 +94,8 @@ export function DashboardView({ user, go }: { user: User; go: Go }) {
             </Card>
 
             <Card title="Onayınızı bekleyenler">
-              {data.toReview.length === 0 ? (
-                <Empty icon="check">İncelemeniz gereken dilekçe yok.</Empty>
+              {data.toReview.length === 0 && data.contractsToReview.length === 0 ? (
+                <Empty icon="check">Onayınızı bekleyen dilekçe ya da sözleşme yok.</Empty>
               ) : (
                 <ul className="items">
                   {data.toReview.map((p) => (
@@ -77,6 +105,15 @@ export function DashboardView({ user, go }: { user: User; go: Go }) {
                         <span>
                           {p.case_title} · yazan {p.author_name}
                         </span>
+                      </span>
+                      <span className="badge incelemede">İncele</span>
+                    </li>
+                  ))}
+                  {data.contractsToReview.map((c) => (
+                    <li key={`c${c.id}`} className="clickable" onClick={() => go({ name: 'contract', id: c.id })}>
+                      <span className="item-text">
+                        <strong>{c.title}</strong>
+                        <span>Sözleşme · gönderen {c.author_name}</span>
                       </span>
                       <span className="badge incelemede">İncele</span>
                     </li>
@@ -153,6 +190,7 @@ export function DashboardView({ user, go }: { user: User; go: Go }) {
               )}
             </Card>
 
+{!data.month.hidden && (
             <Card title="Bu ay" actions={<button className="link" onClick={() => go({ name: 'finance' })}>Muhasebe</button>}>
               <dl className="money">
                 <div>
@@ -169,6 +207,7 @@ export function DashboardView({ user, go }: { user: User; go: Go }) {
                 </div>
               </dl>
             </Card>
+            )}
           </div>
         </>
       )}

@@ -2,11 +2,15 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { api, getServerUrl, hasToken, setServerUrl, setToken, type User } from './api';
 import { AgendaView, TasksView } from './Agenda';
 import { CasesView, CaseView } from './Cases';
+import { ConsultancyClientView, ConsultancyView } from './Consultancy';
 import { ContractsView, ContractView } from './Contracts';
 import { DashboardView } from './Dashboard';
+import { DeadlinesView } from './Deadlines';
+import { EstatesView, EstateView } from './Estates';
 import { EnforcementFileView, EnforcementView } from './Enforcement';
 import { FinanceView } from './Finance';
-import { DecisionsView, TeamView } from './Office';
+import { DecisionsView } from './Archive';
+import { TeamView } from './Office';
 import { OpposingView, PetitionView } from './Petition';
 import { TemplatesView } from './Templates';
 import { ErrorText, Icon, type IconName } from './ui';
@@ -25,6 +29,11 @@ export type View =
   | { name: 'finance' }
   | { name: 'enforcement' }
   | { name: 'enforcement-file'; id: number }
+  | { name: 'consultancy' }
+  | { name: 'estates' }
+  | { name: 'deadlines'; tab?: string }
+  | { name: 'estate'; id: number }
+  | { name: 'consultancy-client'; id: number }
   | { name: 'decisions' }
   | { name: 'team' };
 
@@ -200,6 +209,7 @@ const NAV: { section: string; items: { name: View['name']; label: string; icon: 
       { name: 'dashboard', label: 'Ana sayfa', icon: 'home' },
       { name: 'agenda', label: 'Ajanda', icon: 'calendar' },
       { name: 'tasks', label: 'Görevler', icon: 'check' },
+      { name: 'deadlines', label: 'Süreler ve riskler', icon: 'shield' },
     ],
   },
   {
@@ -208,15 +218,17 @@ const NAV: { section: string; items: { name: View['name']; label: string; icon: 
       { name: 'cases', label: 'Dava dosyaları', icon: 'folder' },
       { name: 'templates', label: 'Dilekçe şablonları', icon: 'book' },
       { name: 'contracts', label: 'Sözleşmeler', icon: 'contract' },
+      { name: 'consultancy', label: 'Danışmanlık', icon: 'briefcase' },
+      { name: 'estates', label: 'Miras', icon: 'tree' },
       { name: 'enforcement', label: 'İcra takibi', icon: 'gavel' },
-      { name: 'decisions', label: 'İçtihat arşivi', icon: 'scale' },
+      { name: 'decisions', label: 'Yargıtay kararları', icon: 'scale' },
     ],
   },
   {
     section: 'Yönetim',
     items: [
       { name: 'finance', label: 'Muhasebe', icon: 'wallet' },
-      { name: 'team', label: 'Ekip', icon: 'users' },
+      { name: 'team', label: 'Ekip ve yetkiler', icon: 'users' },
     ],
   },
 ];
@@ -228,6 +240,8 @@ const PARENT: Partial<Record<View['name'], View['name']>> = {
   opposing: 'cases',
   contract: 'contracts',
   'enforcement-file': 'enforcement',
+  'consultancy-client': 'consultancy',
+  estate: 'estates',
 };
 
 function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
@@ -268,7 +282,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
       content = <ContractsView go={go} />;
       break;
     case 'contract':
-      content = <ContractView id={view.id} go={go} />;
+      content = <ContractView id={view.id} user={user} go={go} />;
       break;
     case 'finance':
       content = <FinanceView go={go} />;
@@ -278,6 +292,21 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
       break;
     case 'enforcement-file':
       content = <EnforcementFileView id={view.id} go={go} />;
+      break;
+    case 'consultancy':
+      content = <ConsultancyView go={go} />;
+      break;
+    case 'consultancy-client':
+      content = <ConsultancyClientView id={view.id} go={go} />;
+      break;
+    case 'deadlines':
+      content = <DeadlinesView go={go} initialTab={view.tab} />;
+      break;
+    case 'estates':
+      content = <EstatesView go={go} />;
+      break;
+    case 'estate':
+      content = <EstateView id={view.id} go={go} />;
       break;
     case 'decisions':
       content = <DecisionsView user={user} />;
@@ -296,7 +325,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
         {NAV.map((group) => (
           <div key={group.section} className="nav-group">
             <div className="nav-section">{group.section}</div>
-            {group.items.map((item) => (
+            {group.items.filter((item) => item.name !== 'finance' || user.can_finance).map((item) => (
               <button
                 key={item.name}
                 className={`nav-item ${active === item.name ? 'active' : ''}`}

@@ -2,6 +2,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import * as agendaMod from './agenda.ts';
 import * as auth from './auth.ts';
 import * as cases from './cases.ts';
+import * as consultancy from './consultancy.ts';
 import * as contracts from './contracts.ts';
 import { dashboard } from './dashboard.ts';
 import * as enforcement from './enforcement.ts';
@@ -9,17 +10,21 @@ import * as finance from './finance.ts';
 import * as tasks from './tasks.ts';
 import { getTemplate, listAreas } from './templates.ts';
 import { checkCitations } from './citations.ts';
+import * as deadlines from './deadlines.ts';
 import type { DB } from './db.ts';
-import { searchDecisions, upsertDecision } from './decisions.ts';
+import { archiveStats, getDecision, searchArchive, searchDecisions, upsertDecision } from './decisions.ts';
 import { ApiError } from './errors.ts';
+import * as estates from './estates.ts';
 import * as opposing from './opposing.ts';
 import * as petitions from './petitions.ts';
 import type { DeepChecker } from './teyit.ts';
+import * as yargitay from './yargitay.ts';
 
 type Handler = (req: Request, user: auth.User) => unknown;
 
-export function createApp(db: DB, options: { deepChecker?: DeepChecker | null } = {}) {
+export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; fetch?: yargitay.Fetch } = {}) {
   const checker = options.deepChecker ?? null;
+  const fetchImpl = options.fetch ?? (fetch as unknown as yargitay.Fetch);
   const app = express();
   app.use(express.json({ limit: '5mb' }));
   // Masaüstü uygulaması file:// kökeninden istek atar; kimlik doğrulama çerezle değil
@@ -49,6 +54,7 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null } 
   app.post('/api/invites/accept', open((req) => auth.acceptInvite(db, req.body)));
   app.get('/api/me', authed((_req, user) => user));
   app.get('/api/users', authed((_req, user) => auth.listOfficeUsers(db, user.office_id)));
+  app.put('/api/users/:id/permissions', authed((req, user) => auth.setPermissions(db, user, id(req), req.body)));
   app.post('/api/invites', authed((req, user) => auth.createInvite(db, user, req.body)));
 
   app.get('/api/cases', authed((_req, user) => cases.listCases(db, user)));
@@ -98,6 +104,8 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null } 
   app.post('/api/contracts', authed((req, user) => contracts.createContract(db, user, req.body)));
   app.get('/api/contracts/:id', authed((req, user) => contracts.getContract(db, user, id(req))));
   app.put('/api/contracts/:id', authed((req, user) => contracts.updateContract(db, user, id(req), req.body)));
+  app.post('/api/contracts/:id/submit', authed((req, user) => contracts.submitContract(db, user, id(req))));
+  app.post('/api/contracts/:id/review', authed((req, user) => contracts.reviewContract(db, user, id(req), req.body)));
   app.post('/api/contracts/:id/obligations', authed((req, user) => contracts.addObligation(db, user, id(req), req.body)));
   app.put(
     '/api/obligations/:id',
@@ -114,15 +122,45 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null } 
   app.put('/api/enforcement/:id', authed((req, user) => enforcement.updateFile(db, user, id(req), req.body)));
   app.post('/api/enforcement/:id/actions', authed((req, user) => enforcement.addAction(db, user, id(req), req.body)));
 
+  app.get('/api/consultancy', authed((_req, user) => consultancy.listClients(db, user)));
+  app.post('/api/consultancy', authed((req, user) => consultancy.createClient(db, user, req.body)));
+  app.get('/api/consultancy/:id', authed((req, user) => consultancy.getClient(db, user, id(req))));
+  app.put('/api/consultancy/:id', authed((req, user) => consultancy.updateClient(db, user, id(req), req.body)));
+  app.post('/api/consultancy/:id/records', authed((req, user) => consultancy.addRecord(db, user, id(req), req.body)));
+  app.post('/api/consultancy/:id/invoice', authed((req, user) => consultancy.invoiceMonth(db, user, id(req), req.body)));
+  app.delete('/api/consultancy-records/:id', authed((req, user) => consultancy.deleteRecord(db, user, id(req))));
+
+  app.get('/api/estates', authed((_req, user) => estates.listEstates(db, user)));
+  app.post('/api/estates', authed((req, user) => estates.createEstate(db, user, req.body)));
+  app.get('/api/estates/:id', authed((req, user) => estates.getEstate(db, user, id(req))));
+  app.put('/api/estates/:id', authed((req, user) => estates.updateEstate(db, user, id(req), req.body)));
+  app.post('/api/estates/:id/heirs', authed((req, user) => estates.addHeir(db, user, id(req), req.body)));
+  app.post('/api/estates/:id/items', authed((req, user) => estates.addItem(db, user, id(req), req.body)));
+  app.put('/api/heirs/:id', authed((req, user) => estates.updateHeir(db, user, id(req), req.body)));
+  app.delete('/api/heirs/:id', authed((req, user) => estates.deleteHeir(db, user, id(req))));
+  app.delete('/api/estate-items/:id', authed((req, user) => estates.deleteItem(db, user, id(req))));
+
+  app.get('/api/deadline-rules', authed(() => deadlines.RULES));
+  app.post('/api/deadlines/calculate', authed((req) => deadlines.calculate(req.body)));
+  app.get('/api/deadlines', authed((req, user) => deadlines.listDeadlines(db, user, req.query as Record<string, string>)));
+  app.post('/api/deadlines', authed((req, user) => deadlines.createDeadline(db, user, req.body)));
+  app.put('/api/deadlines/:id', authed((req, user) => deadlines.setDeadlineDone(db, user, id(req), Boolean(req.body.done))));
+  app.delete('/api/deadlines/:id', authed((req, user) => deadlines.deleteDeadline(db, user, id(req))));
+  app.get('/api/risks', authed((_req, user) => deadlines.risks(db, user)));
+
   app.get('/api/decisions', authed((req) => searchDecisions(db, String(req.query.q ?? ''))));
+  app.get('/api/archive', authed((req) => searchArchive(db, req.query as Record<string, string>)));
+  app.get('/api/archive/stats', authed(() => archiveStats(db)));
+  app.get('/api/decisions/:id', authed((req) => getDecision(db, id(req))));
   app.post(
     '/api/decisions',
     authed((req, user) => {
       if (user.role !== 'avukat') throw new ApiError(403, 'Arşive yalnızca avukatlar karar ekleyebilir.');
-      upsertDecision(db, req.body);
-      return { ok: true };
+      return { ok: true, id: upsertDecision(db, req.body) };
     }),
   );
+  app.get('/api/yargitay/search', authed((req) => yargitay.search(db, fetchImpl, req.query as Record<string, string>)));
+  app.post('/api/yargitay/import', authed((req, user) => yargitay.importDecision(db, fetchImpl, user, req.body ?? {})));
   app.post('/api/citations/check', authed((req) => checkCitations(db, String(req.body.body ?? ''))));
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {

@@ -204,6 +204,98 @@ CREATE TABLE IF NOT EXISTS tasks (
   created_by INTEGER NOT NULL REFERENCES users(id),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- Danışmanlık: sürekli hukuki danışmanlık verilen müvekkiller ve çalışma kayıtları.
+CREATE TABLE IF NOT EXISTS consultancy_clients (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  name TEXT NOT NULL,
+  contact TEXT NOT NULL DEFAULT '',
+  tax_no TEXT NOT NULL DEFAULT '',
+  monthly_fee_kurus INTEGER NOT NULL DEFAULT 0,
+  included_minutes INTEGER NOT NULL DEFAULT 0,
+  extra_hour_kurus INTEGER NOT NULL DEFAULT 0,
+  start_date TEXT NOT NULL DEFAULT '',
+  end_date TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'aktif',
+  responsible_id INTEGER REFERENCES users(id),
+  note TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS consultancy_records (
+  id INTEGER PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES consultancy_clients(id),
+  date TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'gorus',
+  subject TEXT NOT NULL,
+  minutes INTEGER NOT NULL DEFAULT 0,
+  note TEXT NOT NULL DEFAULT '',
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS consultancy_invoices (
+  id INTEGER PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES consultancy_clients(id),
+  month TEXT NOT NULL,
+  amount_kurus INTEGER NOT NULL,
+  finance_entry_id INTEGER REFERENCES finance_entries(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (client_id, month)
+);
+-- Miras: tereke dosyası, mirasçılar ve tereke kalemleri.
+CREATE TABLE IF NOT EXISTS estates (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  deceased TEXT NOT NULL,
+  death_date TEXT NOT NULL DEFAULT '',
+  client TEXT NOT NULL DEFAULT '',
+  case_id INTEGER REFERENCES cases(id),
+  note TEXT NOT NULL DEFAULT '',
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS estate_heirs (
+  id INTEGER PRIMARY KEY,
+  estate_id INTEGER NOT NULL REFERENCES estates(id),
+  name TEXT NOT NULL,
+  relation TEXT NOT NULL,
+  alive INTEGER NOT NULL DEFAULT 1,
+  parent_id INTEGER REFERENCES estate_heirs(id),
+  side TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS estate_items (
+  id INTEGER PRIMARY KEY,
+  estate_id INTEGER NOT NULL REFERENCES estates(id),
+  kind TEXT NOT NULL CHECK (kind IN ('varlik', 'borc')),
+  category TEXT NOT NULL DEFAULT '',
+  title TEXT NOT NULL,
+  value_kurus INTEGER NOT NULL DEFAULT 0
+);
+-- Önleyici hukuk: yasal süre takibi.
+CREATE TABLE IF NOT EXISTS legal_deadlines (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  case_id INTEGER REFERENCES cases(id),
+  title TEXT NOT NULL,
+  rule_id TEXT NOT NULL DEFAULT '',
+  start_date TEXT NOT NULL DEFAULT '',
+  due_date TEXT NOT NULL,
+  basis TEXT NOT NULL DEFAULT '',
+  note TEXT NOT NULL DEFAULT '',
+  done INTEGER NOT NULL DEFAULT 0,
+  responsible_id INTEGER REFERENCES users(id),
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- Sözleşme onay geçmişi (dilekçedeki akranlar arası onayın sözleşme karşılığı).
+CREATE TABLE IF NOT EXISTS contract_reviews (
+  id INTEGER PRIMARY KEY,
+  contract_id INTEGER NOT NULL REFERENCES contracts(id),
+  action TEXT NOT NULL CHECK (action IN ('submit', 'approve', 'request_changes')),
+  comment TEXT NOT NULL DEFAULT '',
+  body_hash TEXT NOT NULL DEFAULT '',
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 -- Ajanda (dava defteri): avukatın kendi notları ve randevuları.
 CREATE TABLE IF NOT EXISTS agenda_items (
   id INTEGER PRIMARY KEY,
@@ -224,6 +316,28 @@ function migrate(db: DB) {
   if (!caseColumns.includes('client')) db.exec("ALTER TABLE cases ADD COLUMN client TEXT NOT NULL DEFAULT ''");
   if (!caseColumns.includes('responsible_id')) db.exec('ALTER TABLE cases ADD COLUMN responsible_id INTEGER REFERENCES users(id)');
   if (!caseColumns.includes('status')) db.exec("ALTER TABLE cases ADD COLUMN status TEXT NOT NULL DEFAULT 'acik'");
+
+  const userColumns = (db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).map((c) => c.name);
+  if (!userColumns.includes('is_admin')) {
+    db.exec('ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0');
+    // Mevcut bürolarda büroyu açan (ilk) kullanıcı yönetici olur.
+    db.exec('UPDATE users SET is_admin = 1 WHERE id IN (SELECT MIN(id) FROM users GROUP BY office_id)');
+  }
+  if (!userColumns.includes('can_finance')) {
+    db.exec('ALTER TABLE users ADD COLUMN can_finance INTEGER NOT NULL DEFAULT 1');
+    db.exec("UPDATE users SET can_finance = 0 WHERE role = 'stajyer'");
+  }
+  if (!userColumns.includes('can_approve')) {
+    db.exec('ALTER TABLE users ADD COLUMN can_approve INTEGER NOT NULL DEFAULT 1');
+    db.exec("UPDATE users SET can_approve = 0 WHERE role = 'stajyer'");
+  }
+  if (!userColumns.includes('all_cases')) db.exec('ALTER TABLE users ADD COLUMN all_cases INTEGER NOT NULL DEFAULT 1');
+
+  const contractColumns = (db.prepare('PRAGMA table_info(contracts)').all() as { name: string }[]).map((c) => c.name);
+  if (!contractColumns.includes('review_status')) {
+    db.exec("ALTER TABLE contracts ADD COLUMN review_status TEXT NOT NULL DEFAULT ''");
+    db.exec('ALTER TABLE contracts ADD COLUMN submitted_by INTEGER REFERENCES users(id)');
+  }
 }
 
 export function openDb(file = ':memory:'): DB {

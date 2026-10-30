@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { User } from './auth.ts';
 import type { DB } from './db.ts';
 import { ApiError } from './errors.ts';
@@ -359,6 +360,8 @@ interface ContractRow {
   status: string;
   case_id: number | null;
   created_at: string;
+  review_status: string;
+  submitted_by: number | null;
 }
 
 function load(db: DB, user: User, id: number): ContractRow {
@@ -403,6 +406,10 @@ export function createContract(db: DB, user: User, input: ContractInput) {
 
 export function updateContract(db: DB, user: User, id: number, input: ContractInput) {
   const c = load(db, user, id);
+  // Metin değişirse önceki onay geçersiz olur.
+  if (input.body !== undefined && input.body !== c.body && c.review_status) {
+    db.prepare("UPDATE contracts SET review_status = '' WHERE id = ?").run(id);
+  }
   if (input.status !== undefined && !STATUSES.includes(input.status)) throw new ApiError(400, 'Geçersiz durum.');
   db.prepare(
     `UPDATE contracts SET title = ?, kind = ?, parties = ?, body = ?, start_date = ?, end_date = ?, value_kurus = ?, status = ?
@@ -426,7 +433,14 @@ export function getContract(db: DB, user: User, id: number) {
   const obligations = db
     .prepare('SELECT * FROM contract_obligations WHERE contract_id = ? ORDER BY done, due_date, id')
     .all(id);
-  return { ...c, obligations, analysis: analyzeContract(c.body) };
+  const reviews = db
+    .prepare(
+      `SELECT r.action, r.comment, r.created_at, u.name AS user_name FROM contract_reviews r JOIN users u ON u.id = r.user_id
+       WHERE r.contract_id = ? ORDER BY r.id DESC`,
+    )
+    .all(id);
+  const submitter = c.submitted_by ? (db.prepare('SELECT name FROM users WHERE id = ?').get(c.submitted_by) as { name: string }) : null;
+  return { ...c, submitted_by_name: submitter?.name ?? '', obligations, reviews, analysis: analyzeContract(c.body) };
 }
 
 export function addObligation(
@@ -452,4 +466,39 @@ export function setObligationDone(db: DB, user: User, obligationId: number, done
   if (!row) throw new ApiError(404, 'Taahhüt bulunamadı.');
   db.prepare('UPDATE contract_obligations SET done = ? WHERE id = ?').run(done ? 1 : 0, obligationId);
   return getContract(db, user, row.contract_id);
+}
+
+const bodyHash = (body: string) => createHash('sha256').update(body).digest('hex');
+
+/** Sözleşmeyi başka bir avukatın onayına gönderir. */
+export function submitContract(db: DB, user: User, id: number) {
+  const c = load(db, user, id);
+  if (!c.body.trim()) throw new ApiError(400, 'Onaya göndermeden önce sözleşme metnini girin.');
+  if (c.review_status === 'incelemede') throw new ApiError(400, 'Sözleşme zaten onay bekliyor.');
+  db.transaction(() => {
+    db.prepare("UPDATE contracts SET review_status = 'incelemede', submitted_by = ? WHERE id = ?").run(user.id, id);
+    db.prepare("INSERT INTO contract_reviews (contract_id, action, body_hash, user_id) VALUES (?, 'submit', ?, ?)").run(id, bodyHash(c.body), user.id);
+  })();
+  return getContract(db, user, id);
+}
+
+/** Gönderen dışındaki, onay yetkisi olan avukat onaylar ya da düzeltme ister. */
+export function reviewContract(db: DB, user: User, id: number, input: { action?: string; comment?: string }) {
+  const c = load(db, user, id);
+  if (c.review_status !== 'incelemede') throw new ApiError(400, 'Sözleşme onay beklemiyor.');
+  if (user.role !== 'avukat' || !user.can_approve) throw new ApiError(403, 'Onay yetkiniz yok. Büro yöneticisinden isteyin.');
+  if (c.submitted_by === user.id) throw new ApiError(403, 'Onaya gönderen avukat kendi sözleşmesini onaylayamaz.');
+  if (input.action !== 'approve' && input.action !== 'request_changes') throw new ApiError(400, 'Geçersiz işlem.');
+  if (input.action === 'request_changes' && !input.comment?.trim()) throw new ApiError(400, 'Düzeltme isterken not yazın.');
+  db.transaction(() => {
+    db.prepare('UPDATE contracts SET review_status = ? WHERE id = ?').run(input.action === 'approve' ? 'onayli' : 'duzeltme', id);
+    db.prepare('INSERT INTO contract_reviews (contract_id, action, comment, body_hash, user_id) VALUES (?, ?, ?, ?, ?)').run(
+      id,
+      input.action,
+      input.comment?.trim() ?? '',
+      bodyHash(c.body),
+      user.id,
+    );
+  })();
+  return getContract(db, user, id);
 }

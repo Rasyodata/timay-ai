@@ -1,4 +1,5 @@
 import type { User } from './auth.ts';
+import { assertCaseVisible } from './cases.ts';
 import { checkCitations } from './citations.ts';
 import type { DB } from './db.ts';
 import { ApiError } from './errors.ts';
@@ -30,6 +31,7 @@ function loadPetition(db: DB, user: User, petitionId: number): Petition {
     )
     .get(petitionId, user.office_id) as Petition | undefined;
   if (!petition) throw new ApiError(404, 'Dilekçe bulunamadı.');
+  if (!user.all_cases) assertCaseVisible(db, user, petition.case_id);
   return petition;
 }
 
@@ -55,7 +57,7 @@ function ackedKeys(db: DB, petitionId: number, version: number, userId: number):
 
 /** İnceleme yapabilecek kişi: yazanlardan biri olmayan avukat. */
 function assertReviewer(db: DB, user: User, petition: Petition) {
-  if (user.role !== 'avukat') throw new ApiError(403, 'Yalnızca avukatlar inceleme yapabilir.');
+  if (user.role !== 'avukat' || !user.can_approve) throw new ApiError(403, 'Onay yetkiniz yok. Büro yöneticisinden isteyin.');
   const writers = db
     .prepare('SELECT DISTINCT created_by FROM petition_versions WHERE petition_id = ?')
     .all(petition.id) as { created_by: number }[];

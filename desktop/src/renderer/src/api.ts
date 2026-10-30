@@ -23,6 +23,10 @@ export interface User {
   name: string;
   email: string;
   role: Role;
+  is_admin: number;
+  can_finance: number;
+  can_approve: number;
+  all_cases: number;
 }
 
 export interface CaseSummary {
@@ -84,7 +88,7 @@ export interface Task {
 }
 
 export interface AgendaEvent {
-  kind: 'durusma' | 'gorev' | 'taahhut' | 'sozlesme' | 'not';
+  kind: 'durusma' | 'sure' | 'gorev' | 'taahhut' | 'sozlesme' | 'not';
   id: number;
   date: string;
   time: string;
@@ -96,7 +100,8 @@ export interface AgendaEvent {
 
 export interface Dashboard {
   counts: { openCases: number; drafts: number; inReview: number; approved: number; activeContracts: number; openEnforcement: number };
-  month: { income: number; expense: number; profit: number };
+  month: { income: number; expense: number; profit: number; hidden?: boolean };
+  contractsToReview: { id: number; title: string; author_name: string }[];
   toReview: { id: number; title: string; case_title: string; author_name: string }[];
   myDrafts: { id: number; title: string; status: PetitionStatus; case_title: string }[];
   hearings: { id: number; date: string; time: string; place: string; case_id: number; case_title: string; case_court: string }[];
@@ -134,6 +139,10 @@ export interface ContractAnalysis {
 
 export interface ContractDetail extends ContractSummary {
   body: string;
+  review_status: '' | 'incelemede' | 'onayli' | 'duzeltme';
+  submitted_by: number | null;
+  submitted_by_name: string;
+  reviews: { action: 'submit' | 'approve' | 'request_changes'; comment: string; created_at: string; user_name: string }[];
   obligations: { id: number; party: string; text: string; due_date: string; amount_kurus: number; done: number }[];
   analysis: ContractAnalysis;
 }
@@ -199,6 +208,127 @@ export interface EnforcementFile {
   interest_kurus: number;
   remaining_kurus: number;
   actions?: { id: number; date: string; action: string; amount_kurus: number; note: string; created_by_name: string }[];
+}
+
+export const CONSULT_KIND_LABEL: Record<string, string> = {
+  gorus: 'Hukuki görüş',
+  gorusme: 'Telefon / görüşme',
+  toplanti: 'Toplantı',
+  sozlesme: 'Sözleşme incelemesi',
+  yazisma: 'Yazışma / ihtarname',
+  diger: 'Diğer',
+};
+
+export interface ConsultancyClient {
+  id: number;
+  name: string;
+  contact: string;
+  tax_no: string;
+  monthly_fee_kurus: number;
+  included_minutes: number;
+  extra_hour_kurus: number;
+  start_date: string;
+  end_date: string;
+  status: 'aktif' | 'pasif';
+  responsible_id: number | null;
+  responsible_name: string;
+  note: string;
+  month_minutes?: number;
+  month_charge?: number;
+  last_record?: string | null;
+}
+
+export interface ConsultancyDetail extends ConsultancyClient {
+  records: { id: number; date: string; kind: string; subject: string; minutes: number; note: string; user_name: string }[];
+  months: { month: string; minutes: number; extraMinutes: number; fee: number; extra: number; total: number; invoiced: number | null }[];
+}
+
+export const RELATION_LABEL: Record<string, string> = {
+  es: 'Eş',
+  cocuk: 'Çocuk',
+  torun: 'Torun',
+  anne: 'Anne',
+  baba: 'Baba',
+  kardes: 'Kardeş',
+  buyukebeveyn: 'Büyükanne / büyükbaba',
+};
+
+export interface EstateSummary {
+  id: number;
+  deceased: string;
+  death_date: string;
+  client: string;
+  case_id: number | null;
+  case_title: string | null;
+  heir_count: number;
+  net_kurus: number;
+}
+
+export interface EstateDetail extends Omit<EstateSummary, 'heir_count' | 'net_kurus'> {
+  note: string;
+  heirs: { id: number; name: string; relation: string; alive: number; parent_id: number | null; side: string }[];
+  items: { id: number; kind: 'varlik' | 'borc'; category: string; title: string; value_kurus: number }[];
+  totals: { assets: number; debts: number; net: number };
+  shares: { id: number; share: [number, number]; reserved: [number, number]; note: string; amount_kurus: number; reserved_kurus: number }[];
+  group: string;
+  warnings: string[];
+  deadlines: { title: string; date: string; note: string }[];
+}
+
+export interface DeadlineRule {
+  id: string;
+  group: string;
+  title: string;
+  amount: number;
+  unit: 'gun' | 'hafta' | 'ay' | 'yil';
+  start: string;
+  basis: string;
+  judicial: boolean;
+  businessDay: boolean;
+}
+
+export interface LegalDeadline {
+  id: number;
+  case_id: number | null;
+  case_title: string | null;
+  title: string;
+  rule_id: string;
+  start_date: string;
+  due_date: string;
+  basis: string;
+  note: string;
+  done: number;
+  responsible_name: string | null;
+}
+
+export interface Risk {
+  level: 'yuksek' | 'orta';
+  area: string;
+  title: string;
+  detail: string;
+  link: { view: string; id?: number } | null;
+}
+
+export interface ArchiveDecision {
+  id: number;
+  court: string;
+  chamber: string;
+  esas_no: string;
+  karar_no: string;
+  decision_date: string;
+  source_url: string;
+  excerpt?: string;
+  text?: string;
+}
+
+export interface OnlineDecision {
+  documentId: string;
+  court: string;
+  chamber: string;
+  esasNo: string;
+  kararNo: string;
+  date: string;
+  archiveId: number | null;
 }
 
 export interface PetitionSummary {

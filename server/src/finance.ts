@@ -1,4 +1,4 @@
-import type { User } from './auth.ts';
+import { requireFinance, type User } from './auth.ts';
 import type { DB } from './db.ts';
 import { ApiError } from './errors.ts';
 import { DATE, ownedCaseId, toKurus } from './money.ts';
@@ -27,6 +27,7 @@ function rate(value: unknown, field: string) {
 }
 
 export function addEntry(db: DB, user: User, input: EntryInput) {
+  requireFinance(user);
   if (!KINDS.includes(input.kind)) throw new ApiError(400, 'Kayıt türü gelir, gider ya da masraf olmalı.');
   if (!DATE.test(input.date ?? '')) throw new ApiError(400, 'Tarih YYYY-AA-GG biçiminde olmalı.');
   const amount = toKurus(input.amount);
@@ -53,6 +54,7 @@ export function addEntry(db: DB, user: User, input: EntryInput) {
 }
 
 export function deleteEntry(db: DB, user: User, id: number) {
+  requireFinance(user);
   const r = db.prepare('DELETE FROM finance_entries WHERE id = ? AND office_id = ?').run(id, user.office_id);
   if (r.changes === 0) throw new ApiError(404, 'Kayıt bulunamadı.');
   return { ok: true };
@@ -63,6 +65,7 @@ export function deleteEntry(db: DB, user: User, id: number) {
  * kayıttaki oranlardan hesaplanır.
  */
 export function financeReport(db: DB, user: User, query: { from?: string; to?: string; caseId?: string }) {
+  requireFinance(user);
   const from = query.from && DATE.test(query.from) ? query.from : '0000-01-01';
   const to = query.to && DATE.test(query.to) ? query.to : '9999-12-31';
   const params: unknown[] = [user.office_id, from, to];

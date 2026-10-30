@@ -35,7 +35,7 @@ export function dashboard(db: DB, user: User) {
   );
   // İnceleyebileceği dilekçeler: incelemede olup hiçbir sürümünü yazmadığı dilekçeler.
   const toReview =
-    user.role === 'avukat'
+    user.role === 'avukat' && user.can_approve
       ? db
           .prepare(
             `SELECT p.id, p.title, c.title AS case_title, u.name AS author_name
@@ -82,5 +82,24 @@ export function dashboard(db: DB, user: User) {
        ORDER BY end_date LIMIT 10`,
     )
     .all(o);
-  return { counts, month: { ...money, profit: money.income - money.expense }, toReview, myDrafts, hearings, tasks, deadlines, expiring };
+  const contractsToReview = user.can_approve
+    ? db
+        .prepare(
+          `SELECT c.id, c.title, u.name AS author_name FROM contracts c JOIN users u ON u.id = c.submitted_by
+           WHERE c.office_id = ? AND c.review_status = 'incelemede' AND c.submitted_by != ? ORDER BY c.id DESC LIMIT 10`,
+        )
+        .all(o, user.id)
+    : [];
+  const visibleMoney = user.can_finance ? money : { income: 0, expense: 0 };
+  return {
+    counts,
+    month: { ...visibleMoney, profit: visibleMoney.income - visibleMoney.expense, hidden: !user.can_finance },
+    toReview,
+    contractsToReview,
+    myDrafts,
+    hearings,
+    tasks,
+    deadlines,
+    expiring,
+  };
 }
