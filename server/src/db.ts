@@ -286,6 +286,16 @@ CREATE TABLE IF NOT EXISTS legal_deadlines (
   created_by INTEGER NOT NULL REFERENCES users(id),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- Sözleşme onay geçmişi (dilekçedeki akranlar arası onayın sözleşme karşılığı).
+CREATE TABLE IF NOT EXISTS contract_reviews (
+  id INTEGER PRIMARY KEY,
+  contract_id INTEGER NOT NULL REFERENCES contracts(id),
+  action TEXT NOT NULL CHECK (action IN ('submit', 'approve', 'request_changes')),
+  comment TEXT NOT NULL DEFAULT '',
+  body_hash TEXT NOT NULL DEFAULT '',
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 -- Ajanda (dava defteri): avukatın kendi notları ve randevuları.
 CREATE TABLE IF NOT EXISTS agenda_items (
   id INTEGER PRIMARY KEY,
@@ -306,6 +316,28 @@ function migrate(db: DB) {
   if (!caseColumns.includes('client')) db.exec("ALTER TABLE cases ADD COLUMN client TEXT NOT NULL DEFAULT ''");
   if (!caseColumns.includes('responsible_id')) db.exec('ALTER TABLE cases ADD COLUMN responsible_id INTEGER REFERENCES users(id)');
   if (!caseColumns.includes('status')) db.exec("ALTER TABLE cases ADD COLUMN status TEXT NOT NULL DEFAULT 'acik'");
+
+  const userColumns = (db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).map((c) => c.name);
+  if (!userColumns.includes('is_admin')) {
+    db.exec('ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0');
+    // Mevcut bürolarda büroyu açan (ilk) kullanıcı yönetici olur.
+    db.exec('UPDATE users SET is_admin = 1 WHERE id IN (SELECT MIN(id) FROM users GROUP BY office_id)');
+  }
+  if (!userColumns.includes('can_finance')) {
+    db.exec('ALTER TABLE users ADD COLUMN can_finance INTEGER NOT NULL DEFAULT 1');
+    db.exec("UPDATE users SET can_finance = 0 WHERE role = 'stajyer'");
+  }
+  if (!userColumns.includes('can_approve')) {
+    db.exec('ALTER TABLE users ADD COLUMN can_approve INTEGER NOT NULL DEFAULT 1');
+    db.exec("UPDATE users SET can_approve = 0 WHERE role = 'stajyer'");
+  }
+  if (!userColumns.includes('all_cases')) db.exec('ALTER TABLE users ADD COLUMN all_cases INTEGER NOT NULL DEFAULT 1');
+
+  const contractColumns = (db.prepare('PRAGMA table_info(contracts)').all() as { name: string }[]).map((c) => c.name);
+  if (!contractColumns.includes('review_status')) {
+    db.exec("ALTER TABLE contracts ADD COLUMN review_status TEXT NOT NULL DEFAULT ''");
+    db.exec('ALTER TABLE contracts ADD COLUMN submitted_by INTEGER REFERENCES users(id)');
+  }
 }
 
 export function openDb(file = ':memory:'): DB {

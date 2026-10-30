@@ -55,7 +55,27 @@ export function updateCase(db: DB, user: User, id: number, input: CaseInput) {
   return getCase(db, user, id);
 }
 
+/**
+ * Yalnız kendi dosyalarını görebilen kullanıcı için ek koşul: sorumlusu olduğu, açtığı
+ * ya da kendisine görev verilmiş dosyalar.
+ */
+export function caseVisibility(user: User, alias = 'c') {
+  if (user.all_cases) return { sql: '', params: [] as unknown[] };
+  return {
+    sql: ` AND (${alias}.responsible_id = ? OR ${alias}.created_by = ? OR EXISTS (SELECT 1 FROM tasks t WHERE t.case_id = ${alias}.id AND t.assignee_id = ?))`,
+    params: [user.id, user.id, user.id] as unknown[],
+  };
+}
+
+export function assertCaseVisible(db: DB, user: User, caseId: number) {
+  const v = caseVisibility(user);
+  if (!db.prepare(`SELECT 1 FROM cases c WHERE c.id = ? AND c.office_id = ?${v.sql}`).get(caseId, user.office_id, ...v.params)) {
+    throw new ApiError(404, 'Dava dosyası bulunamadı.');
+  }
+}
+
 export function getCase(db: DB, user: User, id: number) {
+  assertCaseVisible(db, user, id);
   const row = db.prepare('SELECT * FROM cases WHERE id = ? AND office_id = ?').get(id, user.office_id) as
     | {
         id: number;
@@ -79,15 +99,16 @@ export function getCase(db: DB, user: User, id: number) {
 }
 
 export function listCases(db: DB, user: User) {
+  const v = caseVisibility(user);
   return db
     .prepare(
       `SELECT c.id, c.title, c.court, c.esas_no, c.area, c.client, c.status, c.created_at,
         (SELECT MIN(h.date) FROM hearings h WHERE h.case_id = c.id AND h.date >= date('now')) AS next_hearing,
         (SELECT COUNT(*) FROM petitions p WHERE p.case_id = c.id) AS petition_count,
         u.name AS responsible_name
-       FROM cases c LEFT JOIN users u ON u.id = c.responsible_id WHERE c.office_id = ? ORDER BY c.id DESC`,
+       FROM cases c LEFT JOIN users u ON u.id = c.responsible_id WHERE c.office_id = ?${v.sql} ORDER BY c.id DESC`,
     )
-    .all(user.office_id);
+    .all(user.office_id, ...v.params);
 }
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;

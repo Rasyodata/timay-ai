@@ -23,6 +23,10 @@ export interface User {
   name: string;
   email: string;
   role: Role;
+  is_admin: number;
+  can_finance: number;
+  can_approve: number;
+  all_cases: number;
 }
 
 export interface CaseSummary {
@@ -96,7 +100,8 @@ export interface AgendaEvent {
 
 export interface Dashboard {
   counts: { openCases: number; drafts: number; inReview: number; approved: number; activeContracts: number; openEnforcement: number };
-  month: { income: number; expense: number; profit: number };
+  month: { income: number; expense: number; profit: number; hidden?: boolean };
+  contractsToReview: { id: number; title: string; author_name: string }[];
   toReview: { id: number; title: string; case_title: string; author_name: string }[];
   myDrafts: { id: number; title: string; status: PetitionStatus; case_title: string }[];
   hearings: { id: number; date: string; time: string; place: string; case_id: number; case_title: string; case_court: string }[];
@@ -134,6 +139,10 @@ export interface ContractAnalysis {
 
 export interface ContractDetail extends ContractSummary {
   body: string;
+  review_status: '' | 'incelemede' | 'onayli' | 'duzeltme';
+  submitted_by: number | null;
+  submitted_by_name: string;
+  reviews: { action: 'submit' | 'approve' | 'request_changes'; comment: string; created_at: string; user_name: string }[];
   obligations: { id: number; party: string; text: string; due_date: string; amount_kurus: number; done: number }[];
   analysis: ContractAnalysis;
 }

@@ -202,7 +202,7 @@ export function CaseView({ id, user, go, initialTab }: { id: number; user: User;
           ['durusmalar', `Duruşmalar (${data.hearings.length})`],
           ['karsi', 'Karşı taraf'],
           ['gorevler', 'Görevler'],
-          ['muhasebe', 'Masraf ve ücret'],
+          ...(user.can_finance ? ([['muhasebe', 'Masraf ve ücret']] as [CaseTab, string][]) : []),
         ]}
       />
       {tab === 'genel' && <CaseGeneral data={data} setData={setData} areas={areas} user={user} />}

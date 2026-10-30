@@ -52,6 +52,7 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null } 
   app.post('/api/invites/accept', open((req) => auth.acceptInvite(db, req.body)));
   app.get('/api/me', authed((_req, user) => user));
   app.get('/api/users', authed((_req, user) => auth.listOfficeUsers(db, user.office_id)));
+  app.put('/api/users/:id/permissions', authed((req, user) => auth.setPermissions(db, user, id(req), req.body)));
   app.post('/api/invites', authed((req, user) => auth.createInvite(db, user, req.body)));
 
   app.get('/api/cases', authed((_req, user) => cases.listCases(db, user)));
@@ -101,6 +102,8 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null } 
   app.post('/api/contracts', authed((req, user) => contracts.createContract(db, user, req.body)));
   app.get('/api/contracts/:id', authed((req, user) => contracts.getContract(db, user, id(req))));
   app.put('/api/contracts/:id', authed((req, user) => contracts.updateContract(db, user, id(req), req.body)));
+  app.post('/api/contracts/:id/submit', authed((req, user) => contracts.submitContract(db, user, id(req))));
+  app.post('/api/contracts/:id/review', authed((req, user) => contracts.reviewContract(db, user, id(req), req.body)));
   app.post('/api/contracts/:id/obligations', authed((req, user) => contracts.addObligation(db, user, id(req), req.body)));
   app.put(
     '/api/obligations/:id',

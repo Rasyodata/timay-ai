@@ -10,9 +10,17 @@ export interface User {
   name: string;
   email: string;
   role: Role;
+  /** Ekibi ve yetkileri yönetir. */
+  is_admin: number;
+  /** Muhasebeyi görür ve kayıt girer. */
+  can_finance: number;
+  /** Başka avukatın dilekçe ve sözleşmesini onaylayabilir. */
+  can_approve: number;
+  /** Büronun bütün dosyalarını görür; 0 ise yalnız sorumlu olduğu ya da görevi bulunan dosyaları. */
+  all_cases: number;
 }
 
-const USER_COLUMNS = 'id, office_id, name, email, role';
+const USER_COLUMNS = 'id, office_id, name, email, role, is_admin, can_finance, can_approve, all_cases';
 
 export function hashPassword(password: string): string {
   const salt = randomBytes(16).toString('hex');
@@ -45,8 +53,10 @@ function insertUser(db: DB, officeId: number, name: string, email: string, passw
   const exists = db.prepare('SELECT 1 FROM users WHERE email = ?').get(email);
   if (exists) throw new ApiError(409, 'Bu e-posta adresiyle kayıtlı bir kullanıcı var.');
   const result = db
-    .prepare('INSERT INTO users (office_id, name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)')
-    .run(officeId, name.trim(), email, hashPassword(password), role);
+    .prepare(
+      'INSERT INTO users (office_id, name, email, password_hash, role, can_finance, can_approve) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    )
+    .run(officeId, name.trim(), email, hashPassword(password), role, role === 'avukat' ? 1 : 0, role === 'avukat' ? 1 : 0);
   return Number(result.lastInsertRowid);
 }
 
@@ -60,6 +70,7 @@ export function registerOffice(
   return db.transaction(() => {
     const office = db.prepare('INSERT INTO offices (name) VALUES (?)').run(input.officeName.trim());
     const userId = insertUser(db, Number(office.lastInsertRowid), input.name, email, input.password, 'avukat');
+    db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(userId);
     return { token: newSession(db, userId), user: getUser(db, userId) };
   })();
 }
@@ -76,7 +87,7 @@ export function login(db: DB, input: { email: string; password: string }) {
 }
 
 export function createInvite(db: DB, inviter: User, input: { email: string; role: Role }) {
-  if (inviter.role !== 'avukat') throw new ApiError(403, 'Yalnızca avukatlar davet gönderebilir.');
+  if (!inviter.is_admin) throw new ApiError(403, 'Ekibe yalnızca büro yöneticisi davet gönderebilir.');
   requireFields({ email: input.email });
   if (input.role !== 'avukat' && input.role !== 'stajyer') throw new ApiError(400, 'Geçersiz rol.');
   const token = randomBytes(16).toString('hex');
@@ -117,4 +128,39 @@ export function userFromToken(db: DB, token: string | undefined): User {
 
 export function listOfficeUsers(db: DB, officeId: number): User[] {
   return db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE office_id = ? ORDER BY name`).all(officeId) as User[];
+}
+
+export function requireFinance(user: User) {
+  if (!user.can_finance) throw new ApiError(403, 'Muhasebeyi görme yetkiniz yok. Büro yöneticisinden isteyin.');
+}
+
+/** Büro yöneticisi bir çalışanın rolünü ve yetkilerini değiştirir. */
+export function setPermissions(
+  db: DB,
+  admin: User,
+  userId: number,
+  input: { role?: Role; isAdmin?: boolean; canFinance?: boolean; canApprove?: boolean; allCases?: boolean },
+) {
+  if (!admin.is_admin) throw new ApiError(403, 'Yetkileri yalnızca büro yöneticisi değiştirebilir.');
+  const target = db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ? AND office_id = ?`).get(userId, admin.office_id) as
+    | User
+    | undefined;
+  if (!target) throw new ApiError(404, 'Kullanıcı bulunamadı.');
+  if (input.role !== undefined && input.role !== 'avukat' && input.role !== 'stajyer') throw new ApiError(400, 'Geçersiz rol.');
+  const role = input.role ?? target.role;
+  const isAdmin = input.isAdmin === undefined ? target.is_admin : input.isAdmin ? 1 : 0;
+  if (!isAdmin && target.is_admin) {
+    const admins = db.prepare('SELECT COUNT(*) AS n FROM users WHERE office_id = ? AND is_admin = 1').get(admin.office_id) as { n: number };
+    if (admins.n <= 1) throw new ApiError(400, 'Büroda en az bir yönetici kalmalı.');
+  }
+  const canApprove = role === 'stajyer' ? 0 : input.canApprove === undefined ? target.can_approve : input.canApprove ? 1 : 0;
+  db.prepare('UPDATE users SET role = ?, is_admin = ?, can_finance = ?, can_approve = ?, all_cases = ? WHERE id = ?').run(
+    role,
+    isAdmin,
+    input.canFinance === undefined ? target.can_finance : input.canFinance ? 1 : 0,
+    canApprove,
+    input.allCases === undefined ? target.all_cases : input.allCases ? 1 : 0,
+    userId,
+  );
+  return getUser(db, userId);
 }

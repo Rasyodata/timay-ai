@@ -1948,3 +1948,125 @@ td label.ack {
 .card.flush > .items li:first-child {
   border-top: none;
 }
+
+/* Sözleşme onay şeridi */
+.approval-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.approval-bar.onayli {
+  border-color: #b7e0c6;
+  background: var(--ok-soft);
+}
+
+.approval-bar.incelemede {
+  border-color: #f0d9a6;
+  background: var(--warn-soft);
+}
+
+.approval-bar.duzeltme {
+  border-color: #f2c2bd;
+  background: var(--bad-soft);
+}
+
+.approval-state {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.approval-state > span {
+  display: flex;
+  flex-direction: column;
+}
+
+.approval-state .icon {
+  width: 22px;
+  height: 22px;
+}
+
+.approval-bar.onayli .approval-state .icon {
+  color: var(--ok);
+}
+
+.approval-bar.incelemede .approval-state .icon {
+  color: var(--warn);
+}
+
+.approval-bar.duzeltme .approval-state .icon {
+  color: var(--bad);
+}
+
+.approval-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.approval-actions input {
+  min-width: 240px;
+}
+
+/* Yetki anahtarları */
+.perm-cell {
+  text-align: center;
+}
+
+.switch {
+  display: inline-block;
+  position: relative;
+  width: 36px;
+  height: 20px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.switch span {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: #cfd6e3;
+  transition: background 0.15s;
+  cursor: pointer;
+}
+
+.switch span::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s;
+}
+
+.switch input:checked + span {
+  background: var(--ok);
+}
+
+.switch input:checked + span::after {
+  transform: translateX(16px);
+}
+
+.switch input:disabled + span {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

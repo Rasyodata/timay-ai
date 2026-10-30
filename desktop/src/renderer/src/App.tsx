@@ -227,7 +227,7 @@ const NAV: { section: string; items: { name: View['name']; label: string; icon: 
     section: 'Yönetim',
     items: [
       { name: 'finance', label: 'Muhasebe', icon: 'wallet' },
-      { name: 'team', label: 'Ekip', icon: 'users' },
+      { name: 'team', label: 'Ekip ve yetkiler', icon: 'users' },
     ],
   },
 ];
@@ -281,7 +281,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
       content = <ContractsView go={go} />;
       break;
     case 'contract':
-      content = <ContractView id={view.id} go={go} />;
+      content = <ContractView id={view.id} user={user} go={go} />;
       break;
     case 'finance':
       content = <FinanceView go={go} />;
@@ -324,7 +324,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
         {NAV.map((group) => (
           <div key={group.section} className="nav-group">
             <div className="nav-section">{group.section}</div>
-            {group.items.map((item) => (
+            {group.items.filter((item) => item.name !== 'finance' || user.can_finance).map((item) => (
               <button
                 key={item.name}
                 className={`nav-item ${active === item.name ? 'active' : ''}`}

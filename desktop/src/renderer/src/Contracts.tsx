@@ -7,6 +7,7 @@ import {
   type ContractStatus,
   type ContractSummary,
   type ContractTemplate,
+  type User,
 } from './api';
 import type { Go } from './App';
 import { Card, DueLabel, Empty, ErrorText, Field, formatDate, formatTL, Icon, PageHeader, Stat, Tabs, useAsync } from './ui';
@@ -296,13 +297,14 @@ function AnalysisPanel({ analysis, onAddObligation }: { analysis: ContractAnalys
   );
 }
 
-export function ContractView({ id, go }: { id: number; go: Go }) {
+export function ContractView({ id, user, go }: { id: number; user: User; go: Go }) {
   const { data, error, setData } = useAsync(() => api<ContractDetail>(`/contracts/${id}`), [id]);
   const [tab, setTab] = useState<'metin' | 'analiz' | 'taahhut' | 'bilgi'>('analiz');
   const [body, setBody] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [ob, setOb] = useState({ party: '', text: '', dueDate: '', amount: '' });
   const [info, setInfo] = useState({ title: '', parties: '', startDate: '', endDate: '', value: '' });
+  const [comment, setComment] = useState('');
 
   useEffect(() => {
     if (!data) return;
@@ -326,6 +328,16 @@ export function ContractView({ id, go }: { id: number; go: Go }) {
     try {
       setData(await api<ContractDetail>(`/contracts/${id}/obligations`, { body: preset ?? ob }));
       if (!preset) setOb({ party: '', text: '', dueDate: '', amount: '' });
+      setErr(null);
+    } catch (ex) {
+      setErr((ex as Error).message);
+    }
+  }
+
+  async function reviewAction(path: string, body: unknown = {}) {
+    try {
+      setData(await api<ContractDetail>(`/contracts/${id}${path}`, { body }));
+      setComment('');
       setErr(null);
     } catch (ex) {
       setErr((ex as Error).message);
@@ -363,6 +375,7 @@ export function ContractView({ id, go }: { id: number; go: Go }) {
         <Stat icon="wallet" label="Açık ödeme toplamı" value={formatTL(open.reduce((n, o) => n + o.amount_kurus, 0))} tone="violet" onClick={() => setTab('taahhut')} />
         <Stat icon="calendar" label="Bitiş" value={data.end_date ? formatDate(data.end_date) : 'Süresiz'} />
       </div>
+      <ApprovalBar data={data} user={user} comment={comment} setComment={setComment} onAction={reviewAction} />
       <Tabs
         value={tab}
         onChange={setTab}
@@ -486,6 +499,57 @@ export function ContractView({ id, go }: { id: number; go: Go }) {
           </form>
         </Card>
       )}
+    </div>
+  );
+}
+
+const REVIEW_LABEL = { '': 'Onaya gönderilmedi', incelemede: 'Onay bekliyor', onayli: 'Onaylı', duzeltme: 'Düzeltme istendi' } as const;
+
+function ApprovalBar({
+  data,
+  user,
+  comment,
+  setComment,
+  onAction,
+}: {
+  data: ContractDetail;
+  user: User;
+  comment: string;
+  setComment: (v: string) => void;
+  onAction: (path: string, body?: unknown) => void;
+}) {
+  const canReview = data.review_status === 'incelemede' && user.role === 'avukat' && Boolean(user.can_approve) && data.submitted_by !== user.id;
+  const last = data.reviews.find((r) => r.action !== 'submit');
+  return (
+    <div className={`approval-bar ${data.review_status || 'none'}`}>
+      <div className="approval-state">
+        <Icon name={data.review_status === 'onayli' ? 'check' : data.review_status === 'duzeltme' ? 'alert' : 'clock'} />
+        <span>
+          <strong>Avukat onayı: {REVIEW_LABEL[data.review_status]}</strong>
+          <span className="muted small">
+            {data.review_status === 'incelemede' && `${data.submitted_by_name} gönderdi; gönderen dışında bir avukatın onayı gerekiyor.`}
+            {data.review_status === 'onayli' && last && `${last.user_name} onayladı · ${last.created_at.slice(0, 16)}. Metin değişirse onay düşer.`}
+            {data.review_status === 'duzeltme' && last && `${last.user_name}: “${last.comment}”`}
+            {data.review_status === '' && 'Sözleşmeyi göndermeden önce başka bir avukata onaylatın.'}
+          </span>
+        </span>
+      </div>
+      <div className="approval-actions">
+        {(data.review_status === '' || data.review_status === 'duzeltme') && (
+          <button className="primary" onClick={() => onAction('/submit')}>
+            Onaya gönder
+          </button>
+        )}
+        {canReview && (
+          <>
+            <input placeholder="Not (düzeltme isterken zorunlu)" value={comment} onChange={(e) => setComment(e.target.value)} />
+            <button onClick={() => onAction('/review', { action: 'request_changes', comment })}>Düzeltme iste</button>
+            <button className="primary" onClick={() => onAction('/review', { action: 'approve', comment })}>
+              Onayla
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import type { User } from './auth.ts';
+import { requireFinance, type User } from './auth.ts';
 import type { DB } from './db.ts';
 import { ApiError } from './errors.ts';
 import { DATE, optionalDate, toKurus } from './money.ts';
@@ -195,6 +195,7 @@ export function deleteRecord(db: DB, user: User, recordId: number) {
 
 /** Ayın ücretini muhasebeye gelir olarak işler; aynı ay iki kez faturalanamaz. */
 export function invoiceMonth(db: DB, user: User, clientId: number, input: { month: string; vatRate?: number; withholdingRate?: number }) {
+  requireFinance(user);
   const c = load(db, user, clientId);
   if (!MONTH.test(input.month ?? '')) throw new ApiError(400, 'Ay YYYY-AA biçiminde olmalı.');
   if (db.prepare('SELECT 1 FROM consultancy_invoices WHERE client_id = ? AND month = ?').get(clientId, input.month)) {
