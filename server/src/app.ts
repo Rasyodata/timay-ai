@@ -1,6 +1,13 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
+import * as agendaMod from './agenda.ts';
 import * as auth from './auth.ts';
 import * as cases from './cases.ts';
+import * as contracts from './contracts.ts';
+import { dashboard } from './dashboard.ts';
+import * as enforcement from './enforcement.ts';
+import * as finance from './finance.ts';
+import * as tasks from './tasks.ts';
+import { getTemplate, listAreas } from './templates.ts';
 import { checkCitations } from './citations.ts';
 import type { DB } from './db.ts';
 import { searchDecisions, upsertDecision } from './decisions.ts';
@@ -49,6 +56,10 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null } 
   app.get('/api/cases/:id', authed((req, user) => cases.getCase(db, user, id(req))));
   app.put('/api/cases/:id', authed((req, user) => cases.updateCase(db, user, id(req), req.body)));
   app.get('/api/cases/:id/petitions', authed((req, user) => petitions.listPetitions(db, user, id(req))));
+  app.put('/api/cases/:id/responsible', authed((req, user) => cases.transferCase(db, user, id(req), req.body)));
+  app.post('/api/cases/:id/hearings', authed((req, user) => cases.addHearing(db, user, id(req), req.body)));
+  app.delete('/api/hearings/:id', authed((req, user) => cases.deleteHearing(db, user, id(req))));
+  app.get('/api/hearings', authed((_req, user) => cases.listHearings(db, user)));
   app.get('/api/cases/:id/opposing', authed((req, user) => opposing.listOpposing(db, user, id(req))));
   app.post('/api/cases/:id/opposing', authed((req, user) => opposing.createOpposing(db, user, id(req), req.body)));
   app.get('/api/opposing/:id', authed((req, user) => opposing.getOpposing(db, user, id(req))));
@@ -61,6 +72,47 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null } 
   app.post('/api/petitions/:id/review', authed((req, user) => petitions.review(db, user, id(req), req.body)));
   app.post('/api/petitions/:id/teyit/ack', authed((req, user) => petitions.ackItem(db, user, id(req), req.body)));
   app.post('/api/petitions/:id/teyit/deep', authed((req, user) => petitions.deepCheck(db, user, id(req), checker)));
+
+  app.get('/api/dashboard', authed((_req, user) => dashboard(db, user)));
+  app.get('/api/areas', authed(() => listAreas()));
+  app.get(
+    '/api/templates/:tid',
+    authed((req) => {
+      const t = getTemplate(String(req.params.tid));
+      if (!t) throw new ApiError(404, 'Şablon bulunamadı.');
+      return t;
+    }),
+  );
+
+  app.get('/api/agenda', authed((req, user) => agendaMod.agenda(db, user, req.query as Record<string, string>)));
+  app.post('/api/agenda', authed((req, user) => agendaMod.addAgendaItem(db, user, req.body)));
+  app.delete('/api/agenda/:id', authed((req, user) => agendaMod.deleteAgendaItem(db, user, id(req))));
+
+  app.get('/api/tasks', authed((req, user) => tasks.listTasks(db, user, req.query as Record<string, string>)));
+  app.post('/api/tasks', authed((req, user) => tasks.createTask(db, user, req.body)));
+  app.put('/api/tasks/:id', authed((req, user) => tasks.updateTask(db, user, id(req), req.body)));
+
+  app.get('/api/contract-templates', authed(() => contracts.CONTRACT_TEMPLATES));
+  app.post('/api/contracts/analyze', authed((req) => contracts.analyzeContract(String(req.body.body ?? ''))));
+  app.get('/api/contracts', authed((_req, user) => contracts.listContracts(db, user)));
+  app.post('/api/contracts', authed((req, user) => contracts.createContract(db, user, req.body)));
+  app.get('/api/contracts/:id', authed((req, user) => contracts.getContract(db, user, id(req))));
+  app.put('/api/contracts/:id', authed((req, user) => contracts.updateContract(db, user, id(req), req.body)));
+  app.post('/api/contracts/:id/obligations', authed((req, user) => contracts.addObligation(db, user, id(req), req.body)));
+  app.put(
+    '/api/obligations/:id',
+    authed((req, user) => contracts.setObligationDone(db, user, id(req), Boolean(req.body.done))),
+  );
+
+  app.get('/api/finance', authed((req, user) => finance.financeReport(db, user, req.query as Record<string, string>)));
+  app.post('/api/finance', authed((req, user) => finance.addEntry(db, user, req.body)));
+  app.delete('/api/finance/:id', authed((req, user) => finance.deleteEntry(db, user, id(req))));
+
+  app.get('/api/enforcement', authed((_req, user) => enforcement.listFiles(db, user)));
+  app.post('/api/enforcement', authed((req, user) => enforcement.createFile(db, user, req.body)));
+  app.get('/api/enforcement/:id', authed((req, user) => enforcement.getFile(db, user, id(req))));
+  app.put('/api/enforcement/:id', authed((req, user) => enforcement.updateFile(db, user, id(req), req.body)));
+  app.post('/api/enforcement/:id/actions', authed((req, user) => enforcement.addAction(db, user, id(req), req.body)));
 
   app.get('/api/decisions', authed((req) => searchDecisions(db, String(req.query.q ?? ''))));
   app.post(

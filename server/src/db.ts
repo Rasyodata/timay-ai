@@ -114,12 +114,123 @@ CREATE TABLE IF NOT EXISTS approval_records (
   summary TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- Duruşma takvimi.
+CREATE TABLE IF NOT EXISTS hearings (
+  id INTEGER PRIMARY KEY,
+  case_id INTEGER NOT NULL REFERENCES cases(id),
+  date TEXT NOT NULL,
+  time TEXT NOT NULL DEFAULT '',
+  place TEXT NOT NULL DEFAULT '',
+  note TEXT NOT NULL DEFAULT '',
+  created_by INTEGER NOT NULL REFERENCES users(id)
+);
+-- Sözleşme yönetimi.
+CREATE TABLE IF NOT EXISTS contracts (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  title TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT '',
+  parties TEXT NOT NULL DEFAULT '',
+  body TEXT NOT NULL DEFAULT '',
+  start_date TEXT NOT NULL DEFAULT '',
+  end_date TEXT NOT NULL DEFAULT '',
+  value_kurus INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'taslak' CHECK (status IN ('taslak', 'yururlukte', 'sona_erdi')),
+  case_id INTEGER REFERENCES cases(id),
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS contract_obligations (
+  id INTEGER PRIMARY KEY,
+  contract_id INTEGER NOT NULL REFERENCES contracts(id),
+  party TEXT NOT NULL DEFAULT '',
+  text TEXT NOT NULL,
+  due_date TEXT NOT NULL DEFAULT '',
+  amount_kurus INTEGER NOT NULL DEFAULT 0,
+  done INTEGER NOT NULL DEFAULT 0
+);
+-- Büro muhasebesi: tutarlar kuruş cinsinden tamsayı.
+CREATE TABLE IF NOT EXISTS finance_entries (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  case_id INTEGER REFERENCES cases(id),
+  kind TEXT NOT NULL CHECK (kind IN ('gelir', 'gider', 'masraf')),
+  category TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
+  client TEXT NOT NULL DEFAULT '',
+  amount_kurus INTEGER NOT NULL,
+  vat_rate REAL NOT NULL DEFAULT 0,
+  withholding_rate REAL NOT NULL DEFAULT 0,
+  date TEXT NOT NULL,
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- İcra takipleri.
+CREATE TABLE IF NOT EXISTS enforcement_files (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  case_id INTEGER REFERENCES cases(id),
+  office_name TEXT NOT NULL DEFAULT '',
+  file_no TEXT NOT NULL DEFAULT '',
+  kind TEXT NOT NULL DEFAULT 'ilamsiz',
+  creditor TEXT NOT NULL DEFAULT '',
+  debtor TEXT NOT NULL DEFAULT '',
+  principal_kurus INTEGER NOT NULL DEFAULT 0,
+  interest_rate REAL NOT NULL DEFAULT 0,
+  start_date TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'derdest',
+  note TEXT NOT NULL DEFAULT '',
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS enforcement_actions (
+  id INTEGER PRIMARY KEY,
+  file_id INTEGER NOT NULL REFERENCES enforcement_files(id),
+  date TEXT NOT NULL,
+  action TEXT NOT NULL,
+  amount_kurus INTEGER NOT NULL DEFAULT 0,
+  note TEXT NOT NULL DEFAULT '',
+  created_by INTEGER NOT NULL REFERENCES users(id)
+);
+-- Görevler: avukatlar arası iş verme.
+CREATE TABLE IF NOT EXISTS tasks (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  case_id INTEGER REFERENCES cases(id),
+  title TEXT NOT NULL,
+  assignee_id INTEGER NOT NULL REFERENCES users(id),
+  due_date TEXT NOT NULL DEFAULT '',
+  done INTEGER NOT NULL DEFAULT 0,
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- Ajanda (dava defteri): avukatın kendi notları ve randevuları.
+CREATE TABLE IF NOT EXISTS agenda_items (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  case_id INTEGER REFERENCES cases(id),
+  date TEXT NOT NULL,
+  time TEXT NOT NULL DEFAULT '',
+  title TEXT NOT NULL,
+  note TEXT NOT NULL DEFAULT ''
+);
 `;
+
+/** Eski veritabanlarına sonradan eklenen sütunlar. */
+function migrate(db: DB) {
+  const caseColumns = (db.prepare('PRAGMA table_info(cases)').all() as { name: string }[]).map((c) => c.name);
+  if (!caseColumns.includes('area')) db.exec("ALTER TABLE cases ADD COLUMN area TEXT NOT NULL DEFAULT ''");
+  if (!caseColumns.includes('client')) db.exec("ALTER TABLE cases ADD COLUMN client TEXT NOT NULL DEFAULT ''");
+  if (!caseColumns.includes('responsible_id')) db.exec('ALTER TABLE cases ADD COLUMN responsible_id INTEGER REFERENCES users(id)');
+  if (!caseColumns.includes('status')) db.exec("ALTER TABLE cases ADD COLUMN status TEXT NOT NULL DEFAULT 'acik'");
+}
 
 export function openDb(file = ':memory:'): DB {
   const db = new Database(file);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.exec(schema);
+  migrate(db);
   return db;
 }
