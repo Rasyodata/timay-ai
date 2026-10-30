@@ -1873,3 +1873,20 @@ input.full {
   margin: 0;
   border-top: 1px solid var(--border);
 }
+
+.warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin: 0;
+  border-radius: 8px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-weight: 550;
+}
+
+td label.ack {
+  display: inline-flex;
+  font-size: 12.5px;
+}

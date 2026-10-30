@@ -13,6 +13,7 @@ import { checkCitations } from './citations.ts';
 import type { DB } from './db.ts';
 import { searchDecisions, upsertDecision } from './decisions.ts';
 import { ApiError } from './errors.ts';
+import * as estates from './estates.ts';
 import * as opposing from './opposing.ts';
 import * as petitions from './petitions.ts';
 import type { DeepChecker } from './teyit.ts';
@@ -122,6 +123,16 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null } 
   app.post('/api/consultancy/:id/records', authed((req, user) => consultancy.addRecord(db, user, id(req), req.body)));
   app.post('/api/consultancy/:id/invoice', authed((req, user) => consultancy.invoiceMonth(db, user, id(req), req.body)));
   app.delete('/api/consultancy-records/:id', authed((req, user) => consultancy.deleteRecord(db, user, id(req))));
+
+  app.get('/api/estates', authed((_req, user) => estates.listEstates(db, user)));
+  app.post('/api/estates', authed((req, user) => estates.createEstate(db, user, req.body)));
+  app.get('/api/estates/:id', authed((req, user) => estates.getEstate(db, user, id(req))));
+  app.put('/api/estates/:id', authed((req, user) => estates.updateEstate(db, user, id(req), req.body)));
+  app.post('/api/estates/:id/heirs', authed((req, user) => estates.addHeir(db, user, id(req), req.body)));
+  app.post('/api/estates/:id/items', authed((req, user) => estates.addItem(db, user, id(req), req.body)));
+  app.put('/api/heirs/:id', authed((req, user) => estates.updateHeir(db, user, id(req), req.body)));
+  app.delete('/api/heirs/:id', authed((req, user) => estates.deleteHeir(db, user, id(req))));
+  app.delete('/api/estate-items/:id', authed((req, user) => estates.deleteItem(db, user, id(req))));
 
   app.get('/api/decisions', authed((req) => searchDecisions(db, String(req.query.q ?? ''))));
   app.post(

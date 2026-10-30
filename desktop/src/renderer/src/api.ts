@@ -234,6 +234,38 @@ export interface ConsultancyDetail extends ConsultancyClient {
   months: { month: string; minutes: number; extraMinutes: number; fee: number; extra: number; total: number; invoiced: number | null }[];
 }
 
+export const RELATION_LABEL: Record<string, string> = {
+  es: 'Eş',
+  cocuk: 'Çocuk',
+  torun: 'Torun',
+  anne: 'Anne',
+  baba: 'Baba',
+  kardes: 'Kardeş',
+  buyukebeveyn: 'Büyükanne / büyükbaba',
+};
+
+export interface EstateSummary {
+  id: number;
+  deceased: string;
+  death_date: string;
+  client: string;
+  case_id: number | null;
+  case_title: string | null;
+  heir_count: number;
+  net_kurus: number;
+}
+
+export interface EstateDetail extends Omit<EstateSummary, 'heir_count' | 'net_kurus'> {
+  note: string;
+  heirs: { id: number; name: string; relation: string; alive: number; parent_id: number | null; side: string }[];
+  items: { id: number; kind: 'varlik' | 'borc'; category: string; title: string; value_kurus: number }[];
+  totals: { assets: number; debts: number; net: number };
+  shares: { id: number; share: [number, number]; reserved: [number, number]; note: string; amount_kurus: number; reserved_kurus: number }[];
+  group: string;
+  warnings: string[];
+  deadlines: { title: string; date: string; note: string }[];
+}
+
 export interface PetitionSummary {
   id: number;
   title: string;

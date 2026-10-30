@@ -241,6 +241,35 @@ CREATE TABLE IF NOT EXISTS consultancy_invoices (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (client_id, month)
 );
+-- Miras: tereke dosyası, mirasçılar ve tereke kalemleri.
+CREATE TABLE IF NOT EXISTS estates (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  deceased TEXT NOT NULL,
+  death_date TEXT NOT NULL DEFAULT '',
+  client TEXT NOT NULL DEFAULT '',
+  case_id INTEGER REFERENCES cases(id),
+  note TEXT NOT NULL DEFAULT '',
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS estate_heirs (
+  id INTEGER PRIMARY KEY,
+  estate_id INTEGER NOT NULL REFERENCES estates(id),
+  name TEXT NOT NULL,
+  relation TEXT NOT NULL,
+  alive INTEGER NOT NULL DEFAULT 1,
+  parent_id INTEGER REFERENCES estate_heirs(id),
+  side TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS estate_items (
+  id INTEGER PRIMARY KEY,
+  estate_id INTEGER NOT NULL REFERENCES estates(id),
+  kind TEXT NOT NULL CHECK (kind IN ('varlik', 'borc')),
+  category TEXT NOT NULL DEFAULT '',
+  title TEXT NOT NULL,
+  value_kurus INTEGER NOT NULL DEFAULT 0
+);
 -- Ajanda (dava defteri): avukatın kendi notları ve randevuları.
 CREATE TABLE IF NOT EXISTS agenda_items (
   id INTEGER PRIMARY KEY,
