@@ -9,7 +9,8 @@ import { DeadlinesView } from './Deadlines';
 import { EstatesView, EstateView } from './Estates';
 import { EnforcementFileView, EnforcementView } from './Enforcement';
 import { FinanceView } from './Finance';
-import { DecisionsView, TeamView } from './Office';
+import { DecisionsView } from './Archive';
+import { TeamView } from './Office';
 import { OpposingView, PetitionView } from './Petition';
 import { TemplatesView } from './Templates';
 import { ErrorText, Icon, type IconName } from './ui';
@@ -220,7 +221,7 @@ const NAV: { section: string; items: { name: View['name']; label: string; icon: 
       { name: 'consultancy', label: 'Danışmanlık', icon: 'briefcase' },
       { name: 'estates', label: 'Miras', icon: 'tree' },
       { name: 'enforcement', label: 'İcra takibi', icon: 'gavel' },
-      { name: 'decisions', label: 'İçtihat arşivi', icon: 'scale' },
+      { name: 'decisions', label: 'Yargıtay kararları', icon: 'scale' },
     ],
   },
   {

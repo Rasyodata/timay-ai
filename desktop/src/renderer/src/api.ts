@@ -309,6 +309,28 @@ export interface Risk {
   link: { view: string; id?: number } | null;
 }
 
+export interface ArchiveDecision {
+  id: number;
+  court: string;
+  chamber: string;
+  esas_no: string;
+  karar_no: string;
+  decision_date: string;
+  source_url: string;
+  excerpt?: string;
+  text?: string;
+}
+
+export interface OnlineDecision {
+  documentId: string;
+  court: string;
+  chamber: string;
+  esasNo: string;
+  kararNo: string;
+  date: string;
+  archiveId: number | null;
+}
+
 export interface PetitionSummary {
   id: number;
   title: string;

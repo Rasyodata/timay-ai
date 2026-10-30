@@ -12,17 +12,19 @@ import { getTemplate, listAreas } from './templates.ts';
 import { checkCitations } from './citations.ts';
 import * as deadlines from './deadlines.ts';
 import type { DB } from './db.ts';
-import { searchDecisions, upsertDecision } from './decisions.ts';
+import { archiveStats, getDecision, searchArchive, searchDecisions, upsertDecision } from './decisions.ts';
 import { ApiError } from './errors.ts';
 import * as estates from './estates.ts';
 import * as opposing from './opposing.ts';
 import * as petitions from './petitions.ts';
 import type { DeepChecker } from './teyit.ts';
+import * as yargitay from './yargitay.ts';
 
 type Handler = (req: Request, user: auth.User) => unknown;
 
-export function createApp(db: DB, options: { deepChecker?: DeepChecker | null } = {}) {
+export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; fetch?: yargitay.Fetch } = {}) {
   const checker = options.deepChecker ?? null;
+  const fetchImpl = options.fetch ?? (fetch as unknown as yargitay.Fetch);
   const app = express();
   app.use(express.json({ limit: '5mb' }));
   // Masaüstü uygulaması file:// kökeninden istek atar; kimlik doğrulama çerezle değil
@@ -147,14 +149,18 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null } 
   app.get('/api/risks', authed((_req, user) => deadlines.risks(db, user)));
 
   app.get('/api/decisions', authed((req) => searchDecisions(db, String(req.query.q ?? ''))));
+  app.get('/api/archive', authed((req) => searchArchive(db, req.query as Record<string, string>)));
+  app.get('/api/archive/stats', authed(() => archiveStats(db)));
+  app.get('/api/decisions/:id', authed((req) => getDecision(db, id(req))));
   app.post(
     '/api/decisions',
     authed((req, user) => {
       if (user.role !== 'avukat') throw new ApiError(403, 'Arşive yalnızca avukatlar karar ekleyebilir.');
-      upsertDecision(db, req.body);
-      return { ok: true };
+      return { ok: true, id: upsertDecision(db, req.body) };
     }),
   );
+  app.get('/api/yargitay/search', authed((req) => yargitay.search(db, fetchImpl, req.query as Record<string, string>)));
+  app.post('/api/yargitay/import', authed((req, user) => yargitay.importDecision(db, fetchImpl, user, req.body ?? {})));
   app.post('/api/citations/check', authed((req) => checkCitations(db, String(req.body.body ?? ''))));
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
