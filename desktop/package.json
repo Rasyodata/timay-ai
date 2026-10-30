@@ -37,8 +37,8 @@
       "target": "nsis"
     },
     "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
+      "oneClick": true,
+      "artifactName": "Timay-Kurulum.${ext}",
       "language": "1055"
     }
   }

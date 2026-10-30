@@ -31,6 +31,8 @@ jobs:
   windows:
     needs: test
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -46,3 +48,15 @@ jobs:
           name: Timay-Windows-Kurulum
           path: desktop/dist/*.exe
           if-no-files-found: error
+      # main dalındaki her sürüm, zip'siz tek .exe olarak Releases sayfasına konur.
+      # Sabit indirme adresi: https://github.com/Rasyodata/timay-ai/releases/latest/download/Timay-Kurulum.exe
+      - name: Sürümü yayınla
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "surum-${{ github.run_number }}" desktop/dist/Timay-Kurulum.exe
+          --title "Timay sürüm ${{ github.run_number }}"
+          --notes "Windows kurulum dosyası. İndirip çift tıklayın; Windows uyarı verirse Ek bilgi, ardından Yine de çalıştır."
+          --latest

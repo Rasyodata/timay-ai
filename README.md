@@ -33,7 +33,7 @@ Sunucu `Dockerfile` ile her yerde çalışır; Türkiye'deki bir sunucuya taşı
 
 ## Windows kurulum dosyası
 
-`main` dalına her gönderimde GitHub Actions Windows makinesinde `Timay Setup x.y.z.exe` üretir. Dosya, ilgili çalıştırmanın **Artifacts** bölümünde `Timay-Windows-Kurulum` adıyla indirilebilir. Kod imzalama sertifikası eklenene kadar Windows ilk açılışta "bilinmeyen yayıncı" uyarısı gösterir.
+`main` dalına her gönderimde GitHub Actions Windows makinesinde `Timay-Kurulum.exe` üretir ve **Releases** sayfasına koyar. En son sürüm her zaman şu adresten indirilir: https://github.com/Rasyodata/timay-ai/releases/latest/download/Timay-Kurulum.exe Kod imzalama sertifikası eklenene kadar Windows ilk açılışta "bilinmeyen yayıncı" uyarısı gösterir.
 
 ## Onay akışı
 
