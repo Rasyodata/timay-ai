@@ -9,16 +9,19 @@ import {
   STATUS_LABEL,
   type CaseDetail,
   type CaseSummary,
-  type Citation,
+  type OpposingDetail,
+  type OpposingSummary,
   type PetitionDetail,
   type PetitionSummary,
   type User,
 } from './api';
+import { ApprovalRecord, HighlightedText, needsAck, TeyitPanel } from './Teyit';
 
 type View =
   | { name: 'cases' }
   | { name: 'case'; id: number }
   | { name: 'petition'; id: number }
+  | { name: 'opposing'; id: number }
   | { name: 'team' }
   | { name: 'decisions' };
 
@@ -180,10 +183,19 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
       content = <CasesView open={(id) => setView({ name: 'case', id })} />;
       break;
     case 'case':
-      content = <CaseView id={view.id} openPetition={(id) => setView({ name: 'petition', id })} />;
+      content = (
+        <CaseView
+          id={view.id}
+          openPetition={(id) => setView({ name: 'petition', id })}
+          openOpposing={(id) => setView({ name: 'opposing', id })}
+        />
+      );
       break;
     case 'petition':
       content = <PetitionView id={view.id} user={user} back={(caseId) => setView({ name: 'case', id: caseId })} />;
+      break;
+    case 'opposing':
+      content = <OpposingView id={view.id} back={(caseId) => setView({ name: 'case', id: caseId })} />;
       break;
     case 'team':
       content = <TeamView user={user} />;
@@ -263,9 +275,20 @@ function CasesView({ open }: { open: (id: number) => void }) {
   );
 }
 
-function CaseView({ id, openPetition }: { id: number; openPetition: (id: number) => void }) {
+function CaseView({
+  id,
+  openPetition,
+  openOpposing,
+}: {
+  id: number;
+  openPetition: (id: number) => void;
+  openOpposing: (id: number) => void;
+}) {
   const { data, error, setData } = useAsync(() => api<CaseDetail>(`/cases/${id}`), [id]);
   const petitions = useAsync(() => api<PetitionSummary[]>(`/cases/${id}/petitions`), [id]);
+  const opposing = useAsync(() => api<OpposingSummary[]>(`/cases/${id}/opposing`), [id]);
+  const [opposingTitle, setOpposingTitle] = useState('');
+  const [opposingBody, setOpposingBody] = useState('');
   const [saved, setSaved] = useState(false);
   const [petitionTitle, setPetitionTitle] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
@@ -298,6 +321,16 @@ function CaseView({ id, openPetition }: { id: number; openPetition: (id: number)
     try {
       const p = await api<PetitionDetail>('/petitions', { body: { caseId: id, title: petitionTitle, body: '' } });
       openPetition(p.id);
+    } catch (err) {
+      setActionError((err as Error).message);
+    }
+  }
+
+  async function addOpposing(e: FormEvent) {
+    e.preventDefault();
+    try {
+      const doc = await api<OpposingDetail>(`/cases/${id}/opposing`, { body: { title: opposingTitle, body: opposingBody } });
+      openOpposing(doc.id);
     } catch (err) {
       setActionError((err as Error).message);
     }
@@ -352,6 +385,68 @@ function CaseView({ id, openPetition }: { id: number; openPetition: (id: number)
             </li>
           ))}
         </ul>
+        <h2 className="section-gap">Karşı taraf dilekçeleri</h2>
+        <p className="muted small">Karşı tarafın dilekçesini yapıştırın; atıfları ve iddiaları teyit edilsin.</p>
+        <form onSubmit={addOpposing}>
+          <input
+            className="full"
+            placeholder="Başlık, ör. Davalı cevap dilekçesi"
+            value={opposingTitle}
+            onChange={(e) => setOpposingTitle(e.target.value)}
+            required
+          />
+          <textarea rows={4} placeholder="Dilekçe metni" value={opposingBody} onChange={(e) => setOpposingBody(e.target.value)} required />
+          <button type="submit">Ekle ve teyit et</button>
+        </form>
+        <ErrorText error={opposing.error} />
+        <ul className="list">
+          {opposing.data?.map((o) => (
+            <li key={o.id} className="clickable" onClick={() => openOpposing(o.id)}>
+              <span>{o.title}</span>
+              <span className="muted small">{o.created_at.slice(0, 10)}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function OpposingView({ id, back }: { id: number; back: (caseId: number) => void }) {
+  const { data, error, setData } = useAsync(() => api<OpposingDetail>(`/opposing/${id}`), [id]);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  if (!data) return <ErrorText error={error} />;
+
+  async function deep() {
+    setBusy(true);
+    setActionError(null);
+    try {
+      setData(await api<OpposingDetail>(`/opposing/${id}/teyit/deep`, { body: {} }));
+    } catch (err) {
+      setActionError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section>
+      <div className="row">
+        <button onClick={() => back(data.case_id)}>← Dava dosyası</button>
+        <h2 className="grow">{data.title}</h2>
+        <span className="badge">Karşı taraf</span>
+      </div>
+      <div className="two-col wide-left">
+        <div className="card">
+          <HighlightedText body={data.body} items={data.teyit.items} />
+        </div>
+        <div className="card">
+          <p className="muted small">Kırmızı dayanaklar karşı tarafın dilekçesinde doğrulanamayan noktalardır; cevabınızda kullanabilirsiniz.</p>
+          <TeyitPanel report={data.teyit} onDeep={deep} deepBusy={busy} />
+          <ErrorText error={actionError} />
+        </div>
       </div>
     </section>
   );
@@ -361,37 +456,13 @@ function StatusBadge({ status }: { status: PetitionDetail['status'] }) {
   return <span className={`badge ${status}`}>{STATUS_LABEL[status]}</span>;
 }
 
-function CitationList({ citations }: { citations: Citation[] }) {
-  if (citations.length === 0) return <p className="muted small">Metinde karar atıfı bulunamadı.</p>;
-  return (
-    <ul className="list">
-      {citations.map((c) => (
-        <li key={c.esasNo + c.kararNo} className={c.decisionId ? 'ok' : 'missing'}>
-          <span>
-            {c.esasNo} E. / {c.kararNo} K.
-          </span>
-          {c.decisionId ? (
-            c.sourceUrl ? (
-              <a href={c.sourceUrl} target="_blank" rel="noreferrer">
-                {c.court}
-              </a>
-            ) : (
-              <span className="small">{c.court}</span>
-            )
-          ) : (
-            <span className="small">Arşivde yok</span>
-          )}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 function PetitionView({ id, user, back }: { id: number; user: User; back: (caseId: number) => void }) {
   const { data, error, setData } = useAsync(() => api<PetitionDetail>(`/petitions/${id}`), [id]);
   const [body, setBody] = useState('');
   const [comment, setComment] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [colored, setColored] = useState(false);
 
   useEffect(() => {
     if (data) setBody(data.body);
@@ -404,14 +475,19 @@ function PetitionView({ id, user, back }: { id: number; user: User; back: (caseI
   const isWriter = data.author_id === user.id || data.versions.some((v) => v.created_by === user.id);
   const canReview = data.status === 'incelemede' && user.role === 'avukat' && !isWriter;
 
+  const unacked = data.teyit.items.filter((i) => needsAck(i) && !data.acks.includes(i.key)).length;
+
   async function run(path: string, payload?: unknown) {
     setActionError(null);
+    setBusy(path);
     try {
       setData(await api<PetitionDetail>(`/petitions/${id}${path}`, { body: payload ?? {} }));
-      setComment('');
+      if (path === '/review') setComment('');
     } catch (err) {
       const e = err as ApiError;
       setActionError(e.message);
+    } finally {
+      setBusy(null);
     }
   }
 
@@ -425,8 +501,17 @@ function PetitionView({ id, user, back }: { id: number; user: User; back: (caseI
       </div>
       <div className="two-col wide-left">
         <div className="card">
-          <textarea className="editor" value={body} onChange={(e) => setBody(e.target.value)} readOnly={!editable} />
+          {editable && !colored ? (
+            <textarea className="editor" value={body} onChange={(e) => setBody(e.target.value)} />
+          ) : (
+            <HighlightedText body={editable ? body : data.body} items={data.teyit.items} />
+          )}
           <div className="row">
+            {editable && (
+              <button onClick={() => setColored(!colored)} disabled={dirty && !colored} title={dirty ? 'Önce kaydedin' : ''}>
+                {colored ? 'Düzenlemeye dön' : 'Renkli görünüm'}
+              </button>
+            )}
             {editable && (
               <button disabled={!dirty} onClick={() => run('/versions', { body })}>
                 Yeni sürüm olarak kaydet
@@ -442,21 +527,35 @@ function PetitionView({ id, user, back }: { id: number; user: User; back: (caseI
             <div className="review">
               <textarea rows={3} placeholder="İnceleme notu (düzeltme isterken zorunlu)" value={comment} onChange={(e) => setComment(e.target.value)} />
               <div className="row">
-                <button className="primary" onClick={() => run('/review', { action: 'approve', comment })}>
+                <button
+                  className="primary"
+                  disabled={unacked > 0 || busy !== null}
+                  onClick={() => run('/review', { action: 'approve', comment })}
+                  title={unacked > 0 ? 'Önce sarı ve gri dayanakları işaretleyin' : ''}
+                >
                   Onayla
                 </button>
                 <button onClick={() => run('/review', { action: 'request_changes', comment })}>Düzeltme iste</button>
+                {unacked > 0 && <span className="muted small">Onay için {unacked} dayanağı işaretleyin.</span>}
               </div>
             </div>
           )}
           {data.status === 'incelemede' && isWriter && (
             <p className="muted small">Dilekçe incelemede. Yazan dışında bir avukatın onayı bekleniyor.</p>
           )}
+          {data.status === 'onayli' && data.approval && <ApprovalRecord approval={data.approval} />}
           <ErrorText error={actionError} />
         </div>
         <div className="card">
-          <h3>Karar atıfları</h3>
-          <CitationList citations={data.citations} />
+          {dirty && <p className="muted small">Teyit raporu son kaydedilen sürüme aittir.</p>}
+          <TeyitPanel
+            report={data.teyit}
+            acks={data.acks}
+            canAck={canReview}
+            onAck={(key, checked) => run('/teyit/ack', { key, checked })}
+            onDeep={() => run('/teyit/deep')}
+            deepBusy={busy === '/teyit/deep'}
+          />
           <h3>İnceleme geçmişi</h3>
           {data.reviews.length === 0 && <p className="muted small">Henüz inceleme yok.</p>}
           <ul className="list">

@@ -76,6 +76,44 @@ CREATE TABLE IF NOT EXISTS reviews (
   comment TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- Karşı tarafın dilekçeleri: değiştirilemez, yalnızca teyit edilir.
+CREATE TABLE IF NOT EXISTS opposing_documents (
+  id INTEGER PRIMARY KEY,
+  case_id INTEGER NOT NULL REFERENCES cases(id),
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- Derin teyit (Claude) sonuçları; her sürüm için saklanır, tekrar ücret ödenmez.
+CREATE TABLE IF NOT EXISTS teyit_runs (
+  id INTEGER PRIMARY KEY,
+  target TEXT NOT NULL CHECK (target IN ('petition', 'opposing')),
+  target_id INTEGER NOT NULL,
+  version INTEGER NOT NULL,
+  items TEXT NOT NULL,
+  model TEXT NOT NULL,
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- İnceleyen avukatın sarı/gri dayanakları tek tek kontrol ettiğinin kaydı.
+CREATE TABLE IF NOT EXISTS teyit_acks (
+  petition_id INTEGER NOT NULL REFERENCES petitions(id),
+  version INTEGER NOT NULL,
+  item_key TEXT NOT NULL,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (petition_id, version, item_key, user_id)
+);
+-- Onay anındaki teyit özeti: "X dayanak teyit edildi, Av. Y onayladı".
+CREATE TABLE IF NOT EXISTS approval_records (
+  id INTEGER PRIMARY KEY,
+  petition_id INTEGER NOT NULL REFERENCES petitions(id),
+  version INTEGER NOT NULL,
+  reviewer_id INTEGER NOT NULL REFERENCES users(id),
+  summary TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `;
 
 export function openDb(file = ':memory:'): DB {

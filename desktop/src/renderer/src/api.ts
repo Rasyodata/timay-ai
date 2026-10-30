@@ -55,6 +55,50 @@ export interface Citation {
   sourceUrl: string | null;
 }
 
+export type TeyitStatus = 'yesil' | 'sari' | 'kirmizi' | 'gri';
+export type TeyitKind = 'karar' | 'kanun' | 'olgu';
+
+export interface TeyitItem {
+  key: string;
+  kind: TeyitKind;
+  quote: string;
+  status: TeyitStatus;
+  note: string;
+  source: { label: string; url?: string; quote?: string } | null;
+  deep: boolean;
+}
+
+export interface TeyitReport {
+  items: TeyitItem[];
+  counts: Record<TeyitStatus, number>;
+  deepCheckedAt: string | null;
+}
+
+export const TEYIT_LABEL: Record<TeyitStatus, string> = {
+  yesil: 'Teyit edildi',
+  sari: 'Kontrol edilmeli',
+  kirmizi: 'Teyit edilemedi',
+  gri: 'Sonuçsuz',
+};
+
+export const KIND_LABEL: Record<TeyitKind, string> = {
+  karar: 'Karar',
+  kanun: 'Kanun',
+  olgu: 'Olay',
+};
+
+export interface OpposingSummary {
+  id: number;
+  title: string;
+  created_at: string;
+}
+
+export interface OpposingDetail extends OpposingSummary {
+  case_id: number;
+  body: string;
+  teyit: TeyitReport;
+}
+
 export interface PetitionDetail {
   id: number;
   case_id: number;
@@ -64,6 +108,14 @@ export interface PetitionDetail {
   body: string;
   version: number;
   citations: Citation[];
+  teyit: TeyitReport;
+  acks: string[];
+  approval: {
+    version: number;
+    created_at: string;
+    reviewer_name: string;
+    summary: Record<TeyitStatus, number> & { total: number; deep: boolean };
+  } | null;
   versions: { version: number; body: string; created_at: string; created_by: number; created_by_name: string }[];
   reviews: { version: number; action: 'approve' | 'request_changes'; comment: string; created_at: string; reviewer_name: string }[];
 }

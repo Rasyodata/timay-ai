@@ -47,6 +47,22 @@ Taslak → (atıf kontrolü) → İncelemede → Onaylı
 - Dilekçenin herhangi bir sürümünü yazan avukat o dilekçeyi onaylayamaz.
 - İncelemedeki ve onaylı dilekçe değiştirilemez; her değişiklik yeni sürüm olarak saklanır.
 
+## Teyit
+
+Dilekçedeki her dayanak kaynağına göre denetlenir ve metinde renkle işaretlenir:
+
+| Renk | Anlamı |
+| --- | --- |
+| Yeşil | Teyit edildi: kaynakta (karar metni ya da dava olayları) birebir karşılığı var |
+| Sarı | Kontrol edilmeli: kaynak var ama anlamı doğrulanmadı ya da kısmen destekliyor |
+| Kırmızı | Teyit edilemedi: arşivde olmayan karar, olmayan madde numarası ya da dosyayla çelişen olay |
+| Gri | Sonuçsuz: sistemin denetleyemediği dayanak (ör. listede olmayan kanun) |
+
+- **Hızlı teyit** her kayıtta ücretsiz çalışır: karar numaralarını arşivle, kanun maddelerini bilinen kanunlar listesiyle (`server/src/laws.ts`) karşılaştırır.
+- **Derin teyit** Claude ile yapılır: kararın dilekçede söylenen anlamı karar metninde var mı, olay iddiaları dava dosyasıyla uyuşuyor mu. Claude'un "yeşil" dediği sonuç, alıntıladığı cümle kaynakta birebir geçmiyorsa sunucu tarafından sarıya düşürülür. Sunucuda `ANTHROPIC_API_KEY` tanımlı değilse bu düğme anlaşılır bir uyarı verir. Sonuç sürüm başına saklanır.
+- **Onaya bağlama:** kırmızı dayanak varken dilekçe incelemeye gönderilemez. İnceleyen avukat her sarı ve gri dayanağı "kaynağından kontrol ettim" diye tek tek işaretlemeden onaylayamaz. Onay anındaki teyit özeti **Onay kaydı** olarak saklanır.
+- **Karşı taraf dilekçeleri** dava dosyasına yapıştırılıp aynı şekilde teyit edilir.
+
 ## Sıradaki adımlar
 
 - Yargıtay ve UYAP Emsal kararlarından içtihat arşivinin doldurulması
