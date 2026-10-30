@@ -30,12 +30,175 @@ export interface CaseSummary {
   title: string;
   court: string;
   esas_no: string;
+  area: string;
+  client: string;
+  status: 'acik' | 'kapali';
   created_at: string;
+  next_hearing?: string | null;
+  petition_count?: number;
+  responsible_name?: string;
+}
+
+export interface Hearing {
+  id: number;
+  case_id: number;
+  date: string;
+  time: string;
+  place: string;
+  note: string;
 }
 
 export interface CaseDetail extends CaseSummary {
   parties: string;
   facts: string;
+  responsible_id: number | null;
+  responsible_name: string;
+  hearings: Hearing[];
+}
+
+export interface Area {
+  id: string;
+  name: string;
+  description: string;
+  templates: { id: string; area: string; title: string; description: string }[];
+}
+
+export interface Template {
+  id: string;
+  area: string;
+  title: string;
+  description: string;
+  body: string;
+}
+
+export interface Task {
+  id: number;
+  title: string;
+  due_date: string;
+  done: number;
+  assignee_id: number;
+  assignee_name: string;
+  created_by_name: string;
+  case_id: number | null;
+  case_title: string | null;
+}
+
+export interface AgendaEvent {
+  kind: 'durusma' | 'gorev' | 'taahhut' | 'sozlesme' | 'not';
+  id: number;
+  date: string;
+  time: string;
+  title: string;
+  detail: string;
+  caseId: number | null;
+  contractId: number | null;
+}
+
+export interface Dashboard {
+  counts: { openCases: number; drafts: number; inReview: number; approved: number; activeContracts: number; openEnforcement: number };
+  month: { income: number; expense: number; profit: number };
+  toReview: { id: number; title: string; case_title: string; author_name: string }[];
+  myDrafts: { id: number; title: string; status: PetitionStatus; case_title: string }[];
+  hearings: { id: number; date: string; time: string; place: string; case_id: number; case_title: string; case_court: string }[];
+  tasks: { id: number; title: string; due_date: string; case_title: string | null; created_by_name: string }[];
+  deadlines: { id: number; text: string; due_date: string; amount_kurus: number; contract_id: number; contract_title: string }[];
+  expiring: { id: number; title: string; end_date: string }[];
+}
+
+export type ContractStatus = 'taslak' | 'yururlukte' | 'sona_erdi';
+
+export const CONTRACT_STATUS_LABEL: Record<ContractStatus, string> = {
+  taslak: 'Taslak',
+  yururlukte: 'Yürürlükte',
+  sona_erdi: 'Sona erdi',
+};
+
+export interface ContractSummary {
+  id: number;
+  title: string;
+  kind: string;
+  parties: string;
+  start_date: string;
+  end_date: string;
+  value_kurus: number;
+  status: ContractStatus;
+  open_obligations: number;
+}
+
+export interface ContractAnalysis {
+  obligations: { party: string; text: string }[];
+  payments: { text: string; amounts: string[] }[];
+  dates: string[];
+  risks: { level: 'yuksek' | 'orta' | 'dusuk'; title: string; note: string; quote: string }[];
+}
+
+export interface ContractDetail extends ContractSummary {
+  body: string;
+  obligations: { id: number; party: string; text: string; due_date: string; amount_kurus: number; done: number }[];
+  analysis: ContractAnalysis;
+}
+
+export interface ContractTemplate {
+  id: string;
+  title: string;
+  description: string;
+  body: string;
+}
+
+export interface FinanceEntry {
+  id: number;
+  kind: 'gelir' | 'gider' | 'masraf';
+  category: string;
+  description: string;
+  client: string;
+  amount_kurus: number;
+  vat_rate: number;
+  withholding_rate: number;
+  date: string;
+  case_id: number | null;
+  case_title: string | null;
+}
+
+export interface FinanceReport {
+  entries: FinanceEntry[];
+  summary: { income: number; expense: number; costs: number; profit: number; vatCollected: number; vatPaid: number; vatPayable: number; withholding: number };
+  monthly: { month: string; income: number; expense: number; costs: number }[];
+  byCase: { caseId: number; title: string; income: number; costs: number }[];
+}
+
+export const ENFORCEMENT_KIND_LABEL: Record<string, string> = {
+  ilamsiz: 'İlamsız takip',
+  ilamli: 'İlamlı takip',
+  kambiyo: 'Kambiyo senedine dayalı',
+  rehin: 'Rehnin paraya çevrilmesi',
+  tahliye: 'Tahliye',
+};
+
+export const ENFORCEMENT_STATUS_LABEL: Record<string, string> = {
+  derdest: 'Derdest',
+  itiraz: 'İtiraz edildi',
+  haciz: 'Haciz aşamasında',
+  satis: 'Satış aşamasında',
+  tahsil: 'Tahsil edildi',
+  kapandi: 'Kapandı',
+};
+
+export interface EnforcementFile {
+  id: number;
+  office_name: string;
+  file_no: string;
+  kind: string;
+  creditor: string;
+  debtor: string;
+  principal_kurus: number;
+  interest_rate: number;
+  start_date: string;
+  status: string;
+  note: string;
+  collected_kurus: number;
+  interest_kurus: number;
+  remaining_kurus: number;
+  actions?: { id: number; date: string; action: string; amount_kurus: number; note: string; created_by_name: string }[];
 }
 
 export interface PetitionSummary {
