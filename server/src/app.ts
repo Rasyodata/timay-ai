@@ -2,6 +2,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import * as agendaMod from './agenda.ts';
 import * as auth from './auth.ts';
 import * as cases from './cases.ts';
+import * as consultancy from './consultancy.ts';
 import * as contracts from './contracts.ts';
 import { dashboard } from './dashboard.ts';
 import * as enforcement from './enforcement.ts';
@@ -113,6 +114,14 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null } 
   app.get('/api/enforcement/:id', authed((req, user) => enforcement.getFile(db, user, id(req))));
   app.put('/api/enforcement/:id', authed((req, user) => enforcement.updateFile(db, user, id(req), req.body)));
   app.post('/api/enforcement/:id/actions', authed((req, user) => enforcement.addAction(db, user, id(req), req.body)));
+
+  app.get('/api/consultancy', authed((_req, user) => consultancy.listClients(db, user)));
+  app.post('/api/consultancy', authed((req, user) => consultancy.createClient(db, user, req.body)));
+  app.get('/api/consultancy/:id', authed((req, user) => consultancy.getClient(db, user, id(req))));
+  app.put('/api/consultancy/:id', authed((req, user) => consultancy.updateClient(db, user, id(req), req.body)));
+  app.post('/api/consultancy/:id/records', authed((req, user) => consultancy.addRecord(db, user, id(req), req.body)));
+  app.post('/api/consultancy/:id/invoice', authed((req, user) => consultancy.invoiceMonth(db, user, id(req), req.body)));
+  app.delete('/api/consultancy-records/:id', authed((req, user) => consultancy.deleteRecord(db, user, id(req))));
 
   app.get('/api/decisions', authed((req) => searchDecisions(db, String(req.query.q ?? ''))));
   app.post(

@@ -1863,3 +1863,13 @@ input.full {
   color: var(--text);
   font-size: 13.5px;
 }
+
+.progress.over span {
+  background: var(--bad);
+}
+
+.inset-note {
+  padding: 12px 16px;
+  margin: 0;
+  border-top: 1px solid var(--border);
+}

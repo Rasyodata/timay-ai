@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { api, getServerUrl, hasToken, setServerUrl, setToken, type User } from './api';
 import { AgendaView, TasksView } from './Agenda';
 import { CasesView, CaseView } from './Cases';
+import { ConsultancyClientView, ConsultancyView } from './Consultancy';
 import { ContractsView, ContractView } from './Contracts';
 import { DashboardView } from './Dashboard';
 import { EnforcementFileView, EnforcementView } from './Enforcement';
@@ -25,6 +26,8 @@ export type View =
   | { name: 'finance' }
   | { name: 'enforcement' }
   | { name: 'enforcement-file'; id: number }
+  | { name: 'consultancy' }
+  | { name: 'consultancy-client'; id: number }
   | { name: 'decisions' }
   | { name: 'team' };
 
@@ -208,6 +211,7 @@ const NAV: { section: string; items: { name: View['name']; label: string; icon: 
       { name: 'cases', label: 'Dava dosyaları', icon: 'folder' },
       { name: 'templates', label: 'Dilekçe şablonları', icon: 'book' },
       { name: 'contracts', label: 'Sözleşmeler', icon: 'contract' },
+      { name: 'consultancy', label: 'Danışmanlık', icon: 'briefcase' },
       { name: 'enforcement', label: 'İcra takibi', icon: 'gavel' },
       { name: 'decisions', label: 'İçtihat arşivi', icon: 'scale' },
     ],
@@ -228,6 +232,7 @@ const PARENT: Partial<Record<View['name'], View['name']>> = {
   opposing: 'cases',
   contract: 'contracts',
   'enforcement-file': 'enforcement',
+  'consultancy-client': 'consultancy',
 };
 
 function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
@@ -278,6 +283,12 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
       break;
     case 'enforcement-file':
       content = <EnforcementFileView id={view.id} go={go} />;
+      break;
+    case 'consultancy':
+      content = <ConsultancyView go={go} />;
+      break;
+    case 'consultancy-client':
+      content = <ConsultancyClientView id={view.id} go={go} />;
       break;
     case 'decisions':
       content = <DecisionsView user={user} />;

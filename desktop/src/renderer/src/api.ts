@@ -201,6 +201,39 @@ export interface EnforcementFile {
   actions?: { id: number; date: string; action: string; amount_kurus: number; note: string; created_by_name: string }[];
 }
 
+export const CONSULT_KIND_LABEL: Record<string, string> = {
+  gorus: 'Hukuki görüş',
+  gorusme: 'Telefon / görüşme',
+  toplanti: 'Toplantı',
+  sozlesme: 'Sözleşme incelemesi',
+  yazisma: 'Yazışma / ihtarname',
+  diger: 'Diğer',
+};
+
+export interface ConsultancyClient {
+  id: number;
+  name: string;
+  contact: string;
+  tax_no: string;
+  monthly_fee_kurus: number;
+  included_minutes: number;
+  extra_hour_kurus: number;
+  start_date: string;
+  end_date: string;
+  status: 'aktif' | 'pasif';
+  responsible_id: number | null;
+  responsible_name: string;
+  note: string;
+  month_minutes?: number;
+  month_charge?: number;
+  last_record?: string | null;
+}
+
+export interface ConsultancyDetail extends ConsultancyClient {
+  records: { id: number; date: string; kind: string; subject: string; minutes: number; note: string; user_name: string }[];
+  months: { month: string; minutes: number; extraMinutes: number; fee: number; extra: number; total: number; invoiced: number | null }[];
+}
+
 export interface PetitionSummary {
   id: number;
   title: string;

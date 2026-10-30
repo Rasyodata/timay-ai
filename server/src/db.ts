@@ -204,6 +204,43 @@ CREATE TABLE IF NOT EXISTS tasks (
   created_by INTEGER NOT NULL REFERENCES users(id),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- Danışmanlık: sürekli hukuki danışmanlık verilen müvekkiller ve çalışma kayıtları.
+CREATE TABLE IF NOT EXISTS consultancy_clients (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  name TEXT NOT NULL,
+  contact TEXT NOT NULL DEFAULT '',
+  tax_no TEXT NOT NULL DEFAULT '',
+  monthly_fee_kurus INTEGER NOT NULL DEFAULT 0,
+  included_minutes INTEGER NOT NULL DEFAULT 0,
+  extra_hour_kurus INTEGER NOT NULL DEFAULT 0,
+  start_date TEXT NOT NULL DEFAULT '',
+  end_date TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'aktif',
+  responsible_id INTEGER REFERENCES users(id),
+  note TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS consultancy_records (
+  id INTEGER PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES consultancy_clients(id),
+  date TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'gorus',
+  subject TEXT NOT NULL,
+  minutes INTEGER NOT NULL DEFAULT 0,
+  note TEXT NOT NULL DEFAULT '',
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS consultancy_invoices (
+  id INTEGER PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES consultancy_clients(id),
+  month TEXT NOT NULL,
+  amount_kurus INTEGER NOT NULL,
+  finance_entry_id INTEGER REFERENCES finance_entries(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (client_id, month)
+);
 -- Ajanda (dava defteri): avukatın kendi notları ve randevuları.
 CREATE TABLE IF NOT EXISTS agenda_items (
   id INTEGER PRIMARY KEY,
