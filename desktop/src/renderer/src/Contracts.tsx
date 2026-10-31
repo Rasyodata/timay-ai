@@ -12,6 +12,7 @@ import {
 import { InsightsPanel } from './Insights';
 import { BulkAdd, ContractLifecycle, GroupsList } from './ContractGroups';
 import { RefreshAllButton, RefreshBar, RowRefresh } from './Refresh';
+import { ExportButtons } from './Export';
 import type { Go } from './App';
 import { ArmorTab, FilePick, fileToText, readContractFile as readFile, LibraryPanel, PlaybookPanel, ScheduleCard, SigningTab, VersionsTab } from './Clm';
 import { Card, DueLabel, Empty, ErrorText, Field, formatDate, formatTL, Icon, PageHeader, Stat, Tabs, useAsync } from './ui';
@@ -488,9 +489,12 @@ export function ContractView({ id, user, go }: { id: number; user: User; go: Go 
       {tab === 'metin' && (
         <Card
           actions={
-            <button className="primary" disabled={body === data.body || Boolean(data.locked_at)} onClick={() => save({ body })}>
-              Kaydet
-            </button>
+            <>
+              <ExportButtons title={data.title} body={body} />
+              <button className="primary" disabled={body === data.body || Boolean(data.locked_at)} onClick={() => save({ body })}>
+                Kaydet
+              </button>
+            </>
           }
           title="Sözleşme metni"
         >

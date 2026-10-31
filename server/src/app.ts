@@ -7,6 +7,10 @@ import * as clm from './clm.ts';
 import * as contracts from './contracts.ts';
 import * as groups from './contractgroups.ts';
 import * as refresh from './refresh.ts';
+import * as safahat from './safahat.ts';
+import * as notifications from './notifications.ts';
+import * as mevzuat from './mevzuat.ts';
+import { buildUdf, plainDocx } from './docx.ts';
 import { DOC_KINDS, reviewForUser } from './disciplines.ts';
 import { insights } from './insights.ts';
 import { dashboard } from './dashboard.ts';
@@ -133,6 +137,29 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; f
   app.post('/api/contracts/:id/terminate', authed((req, user) => groups.terminateContract(db, user, id(req), req.body ?? {})));
   app.post('/api/contracts/:id/renew', authed((req, user) => groups.renewContract(db, user, id(req), req.body ?? {})));
   app.post('/api/contracts/:id/addendum', authed((req, user) => groups.addAddendum(db, user, id(req), req.body ?? {})));
+  app.get('/api/laws', authed(() => mevzuat.lawOptions()));
+  app.get('/api/law-changes', authed((_req, user) => mevzuat.listChanges(db, user)));
+  app.post('/api/law-changes', authed((req, user) => mevzuat.createChange(db, user, req.body ?? {})));
+  app.delete('/api/law-changes/:id', authed((req, user) => mevzuat.deleteChange(db, user, id(req))));
+  app.post(
+    '/api/export',
+    authed((req) => {
+      const format = String(req.body?.format ?? 'udf');
+      const body = String(req.body?.body ?? '');
+      if (!body.trim()) throw new ApiError(400, 'Dışa aktarılacak metin boş.');
+      const name = (String(req.body?.title ?? '').trim() || 'Belge').replace(/[\\/:*?"<>|]/g, '').slice(0, 120);
+      if (format === 'docx') return { fileName: `${name}.docx`, base64: plainDocx(body).toString('base64') };
+      if (format === 'udf') return { fileName: `${name}.udf`, base64: buildUdf(body).toString('base64') };
+      throw new ApiError(400, 'Biçim udf ya da docx olmalı.');
+    }),
+  );
+  app.get('/api/stages', authed(() => safahat.stageCatalog()));
+  app.get('/api/cases/:id/safahat', authed((req, user) => safahat.getSafahat(db, user, id(req))));
+  app.post('/api/cases/:id/safahat/preview', authed((req, user) => safahat.previewStage(db, user, id(req), req.body ?? {})));
+  app.post('/api/cases/:id/safahat', authed((req, user) => safahat.addStage(db, user, id(req), req.body ?? {})));
+  app.delete('/api/cases/:id/safahat/:stageId', authed((req, user) => safahat.deleteStage(db, user, id(req), Number(req.params.stageId))));
+  app.get('/api/notifications', authed((_req, user) => notifications.listNotifications(db, user)));
+  app.post('/api/notifications/read', authed((req, user) => notifications.markRead(db, user, req.body ?? {})));
   app.get('/api/refresh/:entity/:id', authed((req, user) => refresh.status(db, user, String(req.params.entity), id(req))));
   app.post('/api/refresh/:entity/:id', authed((req, user) => refresh.refresh(db, user, String(req.params.entity), id(req))));
   app.post('/api/refresh-all', authed((req, user) => refresh.refreshAll(db, user, req.body ?? {})));

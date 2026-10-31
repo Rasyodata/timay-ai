@@ -7,7 +7,7 @@ import { poaRisks } from './poa.ts';
 
 /**
  * Önleyici hukuk: yasal süre hesaplayıcı, süre takibi ve büro genelinde risk uyarıları.
- * Süreler bilgi amaçlıdır; dini bayramlar gibi yıldan yıla değişen tatiller hesaba katılmaz.
+ * Süreler bilgi amaçlıdır; resmî tatiller, dinî bayramlar ve adli tatil hesaba katılır.
  */
 
 type Unit = 'gun' | 'hafta' | 'ay' | 'yil';
@@ -75,8 +75,30 @@ export const RULES: DeadlineRule[] = [
   r('kira-ihtar', 'Kira', 'Kira bedelinin ödenmesi için ihtar süresi (konut)', 30, 'gun', 'İhtarın tebliği', 'TBK 315', false, false),
 ];
 
-// Sabit resmî tatiller (AA-GG). Dinî bayramlar her yıl değiştiği için eklenmez.
+// Sabit resmî tatiller (AA-GG).
 const HOLIDAYS = ['01-01', '04-23', '05-01', '05-19', '07-15', '08-30', '10-29'];
+
+/**
+ * Dinî bayramlar (Ramazan 3 gün, Kurban 4 gün; arife yarım gün olduğu için sayılmaz).
+ * Diyanet takvimine göredir; 2028 ve sonrası tahminîdir, yıl başında kontrol edilmelidir.
+ */
+const BAYRAM: [string, number][] = [
+  ['2025-03-30', 3], ['2025-06-06', 4],
+  ['2026-03-20', 3], ['2026-05-27', 4],
+  ['2027-03-09', 3], ['2027-05-16', 4],
+  ['2028-02-26', 3], ['2028-05-04', 4],
+  ['2029-02-14', 3], ['2029-04-23', 4],
+  ['2030-02-04', 3], ['2030-04-13', 4],
+];
+export const RELIGIOUS_HOLIDAYS = new Set(
+  BAYRAM.flatMap(([start, days]) =>
+    Array.from({ length: days }, (_, i) => {
+      const d = new Date(`${start}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + i);
+      return d.toISOString().slice(0, 10);
+    }),
+  ),
+);
 
 function iso(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -86,9 +108,9 @@ function parse(date: string) {
   return new Date(`${date}T00:00:00Z`);
 }
 
-function isHoliday(d: Date) {
+export function isHoliday(d: Date) {
   const day = d.getUTCDay();
-  return day === 0 || day === 6 || HOLIDAYS.includes(iso(d).slice(5));
+  return day === 0 || day === 6 || HOLIDAYS.includes(iso(d).slice(5)) || RELIGIOUS_HOLIDAYS.has(iso(d));
 }
 
 /** Kurala göre son günü hesaplar ve hangi uzatmaların uygulandığını açıklar. */

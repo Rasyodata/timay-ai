@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ExportButtons } from './Export';
 import { api, type ApiError, type OpposingDetail, type PetitionDetail, type User } from './api';
 import { DisciplineScreen } from './Disciplines';
 import { ApprovalRecord, HighlightedText, needsAck, TeyitPanel } from './Teyit';
@@ -120,6 +121,7 @@ export function PetitionView({ id, user, back, autoReview }: { id: number; user:
             <button onClick={() => setDisc('view')}>
               <Icon name="shield" /> 8 disiplinle incele
             </button>
+            <ExportButtons title={data.title} body={editable ? body : data.body} />
             {editable && (
               <button className="primary" disabled={dirty} onClick={() => setDisc('submit')} title={dirty ? 'Önce kaydedin' : ''}>
                 İncelemeye gönder

@@ -1,4 +1,6 @@
 import { useState, type FormEvent } from 'react';
+import { LawChanges } from './Mevzuat';
+import type { Go } from './App';
 import { api, type ArchiveDecision, type OnlineDecision, type User } from './api';
 import { InsightsPanel } from './Insights';
 import { Card, Empty, ErrorText, Field, formatDate, Icon, PageHeader, Stat, Tabs, useAsync } from './ui';
@@ -13,8 +15,8 @@ const CHAMBERS = [
 
 const title = decisionTitle;
 
-export function DecisionsView({ user }: { user: User }) {
-  const [tab, setTab] = useState<'arsiv' | 'yargitay' | 'ekle'>('arsiv');
+export function DecisionsView({ user, go }: { user: User; go: Go }) {
+  const [tab, setTab] = useState<'arsiv' | 'yargitay' | 'ekle' | 'mevzuat'>('arsiv');
   const stats = useAsync(() => api<{ total: number; chambers: { chamber: string; n: number }[] }>('/archive/stats'), []);
   const [openId, setOpenId] = useState<number | null>(null);
 
@@ -36,12 +38,14 @@ export function DecisionsView({ user }: { user: User }) {
         items={[
           ['arsiv', 'Arşivde ara'],
           ['yargitay', "Yargıtay'da ara ve arşive ekle"],
+          ['mevzuat', 'Mevzuat takibi'],
           ...(user.role === 'avukat' ? ([['ekle', 'Elle karar ekle']] as ['ekle', string][]) : []),
         ]}
       />
-      <div className="grid-main-side wide-side">
+      <div className={tab === 'mevzuat' ? '' : 'grid-main-side wide-side'}>
         <div>
           {tab === 'arsiv' && <ArchiveSearch onOpen={setOpenId} />}
+          {tab === 'mevzuat' && <LawChanges go={go} />}
           {tab === 'yargitay' && (
             <OnlineSearch
               onImported={(id) => {
@@ -59,9 +63,11 @@ export function DecisionsView({ user }: { user: User }) {
             />
           )}
         </div>
-        <div className="sticky">
-          <DecisionPanel id={openId} />
-        </div>
+        {tab !== 'mevzuat' && (
+          <div className="sticky">
+            <DecisionPanel id={openId} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -107,12 +113,26 @@ function ArchiveSearch({ onOpen }: { onOpen: (id: number) => void }) {
           <ul className="items decision-list">
             {result.data?.items.map((d) => (
               <li key={d.id} className="clickable" onClick={() => onOpen(d.id)}>
+                {d.relevance != null && (
+                  <span className={`rel-pill ${d.relevance >= 75 ? 'hi' : d.relevance >= 45 ? 'mid' : 'lo'}`} title="Aramanıza uygunluk">
+                    %{d.relevance}
+                  </span>
+                )}
                 <span className="item-text">
                   <strong>{title(d)}</strong>
                   <span>
                     {d.decision_date && `${formatDate(d.decision_date)} · `}
                     {d.excerpt}
                   </span>
+                  {d.articles && d.articles.length > 0 && (
+                    <span className="art-tags">
+                      {d.articles.map((a) => (
+                        <span key={a} className="tag">
+                          {a}
+                        </span>
+                      ))}
+                    </span>
+                  )}
                 </span>
               </li>
             ))}
