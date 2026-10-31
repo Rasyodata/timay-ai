@@ -1,6 +1,7 @@
 import { api, STATUS_LABEL, type Dashboard, type Risk, type User } from './api';
 import type { Go } from './App';
 import { riskLink } from './Deadlines';
+import { RefreshAllButton } from './Refresh';
 import { Card, DueLabel, Empty, ErrorText, formatDate, formatTL, PageHeader, Stat, useAsync } from './ui';
 
 function greeting() {
@@ -21,6 +22,7 @@ export function DashboardView({ user, go }: { user: User; go: Go }) {
         subtitle={dateText}
         actions={
           <>
+            <RefreshAllButton go={go} />
             <button onClick={() => go({ name: 'templates' })}>Şablondan dilekçe</button>
             <button className="primary" onClick={() => go({ name: 'cases' })}>
               Yeni dava dosyası

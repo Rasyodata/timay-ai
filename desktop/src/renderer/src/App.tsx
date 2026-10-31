@@ -5,6 +5,7 @@ import { CalculatorsView } from './Calculators';
 import { CasesView, CaseView } from './Cases';
 import { ConsultancyClientView, ConsultancyView } from './Consultancy';
 import { ContractsView, ContractView } from './Contracts';
+import { ContractGroupView } from './ContractGroups';
 import { DashboardView } from './Dashboard';
 import { DeadlinesView } from './Deadlines';
 import { EstatesView, EstateView } from './Estates';
@@ -31,6 +32,7 @@ export type View =
   | { name: 'tasks' }
   | { name: 'contracts' }
   | { name: 'contract'; id: number }
+  | { name: 'contract-group'; id: number }
   | { name: 'finance' }
   | { name: 'enforcement' }
   | { name: 'enforcement-file'; id: number }
@@ -239,6 +241,7 @@ const PARENT: Partial<Record<View['name'], View['name']>> = {
   petition: 'cases',
   opposing: 'cases',
   contract: 'contracts',
+  'contract-group': 'contracts',
   'enforcement-file': 'enforcement',
   'consultancy-client': 'consultancy',
   estate: 'estates',
@@ -285,6 +288,9 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
       break;
     case 'contract':
       content = <ContractView id={view.id} user={user} go={go} />;
+      break;
+    case 'contract-group':
+      content = <ContractGroupView key={view.id} id={view.id} go={go} />;
       break;
     case 'finance':
       content = <FinanceView go={go} />;

@@ -586,12 +586,12 @@ function loadContract(db: DB, user: User, id: number) {
 
 const SIDE_LABEL: Record<string, string> = { arsa_sahibi: 'Arsa sahibi', yuklenici: 'Yüklenici' };
 
-function bandOf(score: number) {
+export function bandOf(score: number) {
   return score <= 30 ? 'dusuk' : score <= 70 ? 'orta' : 'yuksek';
 }
 
 /** Madde riski ile içtihat riskini birleştirir (taraf belli değilse yalnız madde riski). */
-function combinedRisk(body: string, kind: string, side: Side, pb: Playbook) {
+export function combinedRisk(body: string, kind: string, side: Side, pb: Playbook) {
   const result = reviewText(body, kind, side, pb);
   const party: Party = side === 'arsa_sahibi' || side === 'yuklenici' ? side : 'notr';
   const precedents = precedentsFor(kind, result.findings.map((f) => f.topic));

@@ -133,6 +133,10 @@ export interface ContractSummary {
   value_kurus: number;
   status: ContractStatus;
   open_obligations: number;
+  group_id?: number | null;
+  group_title?: string;
+  relation?: string;
+  terminated_at?: string;
 }
 
 export interface ContractAnalysis {

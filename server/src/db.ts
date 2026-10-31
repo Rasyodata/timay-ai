@@ -377,6 +377,32 @@ CREATE TABLE IF NOT EXISTS poa_cases (
   case_id INTEGER NOT NULL REFERENCES cases(id),
   PRIMARY KEY (poa_id, case_id)
 );
+-- Sözleşme dosyaları: tek bir işin sözleşmeleri ya da toplu incelenen benzer sözleşmeler.
+CREATE TABLE IF NOT EXISTS contract_groups (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  title TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT '',
+  side TEXT NOT NULL DEFAULT '',
+  case_id INTEGER REFERENCES cases(id),
+  note TEXT NOT NULL DEFAULT '',
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- Güncelle: dosya analizlerinin geçmişi (risk, eksikler), program sürümüyle birlikte.
+CREATE TABLE IF NOT EXISTS analysis_runs (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  entity TEXT NOT NULL,
+  entity_id INTEGER NOT NULL,
+  engine TEXT NOT NULL,
+  risk INTEGER NOT NULL,
+  band TEXT NOT NULL,
+  data TEXT NOT NULL,
+  created_by INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS analysis_runs_entity ON analysis_runs (office_id, entity, entity_id);
 -- Ajanda (dava defteri): avukatın kendi notları ve randevuları.
 CREATE TABLE IF NOT EXISTS agenda_items (
   id INTEGER PRIMARY KEY,
@@ -423,6 +449,14 @@ function migrate(db: DB) {
   if (!contractColumns.includes('locked_at')) db.exec("ALTER TABLE contracts ADD COLUMN locked_at TEXT NOT NULL DEFAULT ''");
   if (!contractColumns.includes('permit_date')) db.exec("ALTER TABLE contracts ADD COLUMN permit_date TEXT NOT NULL DEFAULT ''");
   if (!contractColumns.includes('units')) db.exec('ALTER TABLE contracts ADD COLUMN units INTEGER NOT NULL DEFAULT 1');
+  if (!contractColumns.includes('group_id')) db.exec('ALTER TABLE contracts ADD COLUMN group_id INTEGER REFERENCES contract_groups(id)');
+  if (!contractColumns.includes('parent_id')) {
+    // Ek sözleşme ve yenileme: yeni sözleşme asıl sözleşmeye bağlanır.
+    db.exec('ALTER TABLE contracts ADD COLUMN parent_id INTEGER REFERENCES contracts(id)');
+    db.exec("ALTER TABLE contracts ADD COLUMN relation TEXT NOT NULL DEFAULT ''");
+    db.exec("ALTER TABLE contracts ADD COLUMN terminated_at TEXT NOT NULL DEFAULT ''");
+    db.exec("ALTER TABLE contracts ADD COLUMN termination_reason TEXT NOT NULL DEFAULT ''");
+  }
   const obligationColumns = (db.prepare('PRAGMA table_info(contract_obligations)').all() as { name: string }[]).map((c) => c.name);
   if (!obligationColumns.includes('direction')) db.exec("ALTER TABLE contract_obligations ADD COLUMN direction TEXT NOT NULL DEFAULT ''");
   if (!obligationColumns.includes('source')) db.exec("ALTER TABLE contract_obligations ADD COLUMN source TEXT NOT NULL DEFAULT ''");

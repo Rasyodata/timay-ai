@@ -10,6 +10,8 @@ import {
   type User,
 } from './api';
 import { InsightsPanel } from './Insights';
+import { BulkAdd, ContractLifecycle, GroupsList } from './ContractGroups';
+import { RefreshAllButton, RefreshBar, RowRefresh } from './Refresh';
 import type { Go } from './App';
 import { ArmorTab, FilePick, fileToText, readContractFile as readFile, LibraryPanel, PlaybookPanel, ScheduleCard, SigningTab, VersionsTab } from './Clm';
 import { Card, DueLabel, Empty, ErrorText, Field, formatDate, formatTL, Icon, PageHeader, Stat, Tabs, useAsync } from './ui';
@@ -22,6 +24,8 @@ export function ContractsView({ go }: { go: Go }) {
   const [mode, setMode] = useState<'list' | 'new' | 'review' | 'playbook' | 'library'>('list');
   const [filter, setFilter] = useState<'all' | ContractStatus>('all');
   const [query, setQuery] = useState('');
+  const [bulk, setBulk] = useState(false);
+  const [view, setView] = useState<'tek' | 'dosya'>('tek');
 
   const rows = (list.data ?? []).filter(
     (c) => (filter === 'all' || c.status === filter) && `${c.title} ${c.parties}`.toLocaleLowerCase('tr').includes(query.trim().toLocaleLowerCase('tr')),
@@ -44,6 +48,10 @@ export function ContractsView({ go }: { go: Go }) {
             <button onClick={() => setMode('review')}>
               <Icon name="search" /> Karşı taraf taslağını incele
             </button>
+            <RefreshAllButton entities={['contract', 'group']} go={go} onDone={list.reload} />
+            <button onClick={() => setBulk(true)}>
+              <Icon name="folder" /> Toplu sözleşme ekle
+            </button>
             <button className="primary" onClick={() => setMode('new')}>
               <Icon name="plus" /> Yeni sözleşme
             </button>
@@ -63,8 +71,19 @@ export function ContractsView({ go }: { go: Go }) {
       {mode === 'review' && <QuickReview onClose={() => setMode('list')} onCreated={(id) => go({ name: 'contract', id })} />}
       {mode === 'playbook' && <PlaybookPanel />}
       {mode === 'library' && <LibraryPanel />}
+      {bulk && <BulkAdd go={go} onClose={() => setBulk(false)} />}
 
-      <Card className="flush">
+      <Tabs
+        value={view}
+        onChange={setView}
+        items={[
+          ['tek', 'Tüm sözleşmeler'],
+          ['dosya', 'Sözleşme dosyaları (toplu)'],
+        ]}
+      />
+      {view === 'dosya' && <GroupsList go={go} onBulk={() => setBulk(true)} />}
+
+      {view === 'tek' && <Card className="flush">
         <div className="toolbar inset">
           <label className="search">
             <Icon name="search" />
@@ -93,6 +112,7 @@ export function ContractsView({ go }: { go: Go }) {
                 <th className="num">Bedel</th>
                 <th>Açık taahhüt</th>
                 <th>Durum</th>
+                <th className="num">Güncelle</th>
               </tr>
             </thead>
             <tbody>
@@ -100,6 +120,9 @@ export function ContractsView({ go }: { go: Go }) {
                 <tr key={c.id} className="clickable" onClick={() => go({ name: 'contract', id: c.id })}>
                   <td>
                     <strong>{c.title}</strong>
+                    {c.group_title && <span className="group-tag">{c.group_title}</span>}
+                    {c.relation === 'ek' && <span className="group-tag">Ek</span>}
+                    {c.relation === 'yenileme' && <span className="group-tag">Yenileme</span>}
                   </td>
                   <td className="muted">{c.parties}</td>
                   <td>
@@ -111,12 +134,15 @@ export function ContractsView({ go }: { go: Go }) {
                   <td>
                     <span className={`badge c-${c.status}`}>{CONTRACT_STATUS_LABEL[c.status]}</span>
                   </td>
+                  <td className="num">
+                    <RowRefresh entity="contract" id={c.id} />
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
-      </Card>
+      </Card>}
     </div>
   );
 }
@@ -356,7 +382,7 @@ function AnalysisPanel({ analysis, onAddObligation }: { analysis: ContractAnalys
 
 export function ContractView({ id, user, go }: { id: number; user: User; go: Go }) {
   const { data, error, setData, reload } = useAsync(() => api<ContractDetail>(`/contracts/${id}`), [id]);
-  const [tab, setTab] = useState<'metin' | 'zirh' | 'taahhut' | 'versiyon' | 'imza' | 'bilgi'>('zirh');
+  const [tab, setTab] = useState<'metin' | 'zirh' | 'taahhut' | 'versiyon' | 'imza' | 'bilgi' | 'surec'>('zirh');
   const [body, setBody] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [ob, setOb] = useState({ party: '', text: '', dueDate: '', amount: '' });
@@ -410,7 +436,7 @@ export function ContractView({ id, user, go }: { id: number; user: User; go: Go 
   return (
     <div className="page">
       <PageHeader
-        back={() => go({ name: 'contracts' })}
+        back={() => go(data.group_id ? { name: 'contract-group', id: data.group_id } : { name: 'contracts' })}
         title={data.title}
         subtitle={[data.parties, data.start_date && `${formatDate(data.start_date)}${data.end_date ? ` – ${formatDate(data.end_date)}` : ''}`, data.value_kurus ? formatTL(data.value_kurus) : '']
           .filter(Boolean)
@@ -425,6 +451,7 @@ export function ContractView({ id, user, go }: { id: number; user: User; go: Go 
           </select>
         }
       />
+      <RefreshBar entity="contract" id={data.id} onDone={reload} />
       <div className="stats">
         <Stat
           icon="shield"
@@ -446,6 +473,7 @@ export function ContractView({ id, user, go }: { id: number; user: User; go: Go 
           ['taahhut', `Takvim ve taahhütler (${open.length})`],
           ['versiyon', 'Versiyonlar'],
           ['imza', data.locked_at ? 'İmza (kilitli)' : 'İmza'],
+          ['surec', 'Fesih, yenileme, ek'],
           ['metin', 'Sözleşme metni'],
           ['bilgi', 'Bilgiler'],
         ]}
@@ -455,6 +483,7 @@ export function ContractView({ id, user, go }: { id: number; user: User; go: Go 
       {tab === 'zirh' && <ArmorTab data={data} onChanged={reload} />}
       {tab === 'versiyon' && <VersionsTab id={data.id} />}
       {tab === 'imza' && <SigningTab data={data} onChanged={reload} />}
+      {tab === 'surec' && <ContractLifecycle data={data} go={go} onChanged={reload} />}
 
       {tab === 'metin' && (
         <Card
