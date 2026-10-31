@@ -6,6 +6,7 @@ import { CasesView, CaseView } from './Cases';
 import { ConsultancyClientView, ConsultancyView } from './Consultancy';
 import { ContractsView, ContractView } from './Contracts';
 import { NotesView } from './Notes';
+import { MediationFileView, MediationView } from './Mediation';
 import { BackupView, useDailyBackup } from './Backup';
 import { SearchView } from './Search';
 import { NotificationBell } from './Notifications';
@@ -51,6 +52,8 @@ export type View =
   | { name: 'team' }
   | { name: 'settings' }
   | { name: 'backup' }
+  | { name: 'mediation' }
+  | { name: 'mediation-file'; id: number }
   | { name: 'calculators' }
   | { name: 'powers'; id?: number };
 
@@ -232,6 +235,7 @@ const NAV: { section: string; items: { name: View['name']; label: string; icon: 
       { name: 'consultancy', label: 'Danışmanlık', icon: 'briefcase' },
       { name: 'estates', label: 'Miras', icon: 'tree' },
       { name: 'enforcement', label: 'İcra takibi', icon: 'gavel' },
+      { name: 'mediation', label: 'Arabuluculuk', icon: 'users' },
       { name: 'decisions', label: 'Yargıtay kararları', icon: 'scale' },
     ],
   },
@@ -253,6 +257,7 @@ const PARENT: Partial<Record<View['name'], View['name']>> = {
   contract: 'contracts',
   'contract-group': 'contracts',
   'enforcement-file': 'enforcement',
+  'mediation-file': 'mediation',
   'consultancy-client': 'consultancy',
   estate: 'estates',
 };
@@ -356,6 +361,12 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
       break;
     case 'calculators':
       content = <CalculatorsView />;
+      break;
+    case 'mediation':
+      content = <MediationView go={go} />;
+      break;
+    case 'mediation-file':
+      content = <MediationFileView key={view.id} id={view.id} go={go} />;
       break;
     case 'backup':
       content = <BackupView user={user} />;
