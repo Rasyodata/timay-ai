@@ -178,10 +178,35 @@ export interface ArmorFinding {
   quote: string;
 }
 
+export type RiskBand = 'dusuk' | 'orta' | 'yuksek';
+
+export interface RiskScores {
+  madde: number;
+  ictihat: number;
+  genel: number;
+  band: RiskBand;
+  lehte: number;
+  aleyhte: number;
+}
+
+export interface Precedent {
+  id: string;
+  topic: string;
+  principle: string;
+  basis: string;
+  favours: 'arsa_sahibi' | 'yuklenici' | 'notr';
+  weight: number;
+  query: string;
+  direction: 'lehte' | 'aleyhte' | 'notr';
+}
+
 export interface ArmorReview {
   score: number;
-  band: 'dusuk' | 'orta' | 'yuksek';
+  band: RiskBand;
   side: string;
+  risk: RiskScores;
+  parties: (RiskScores & { side: string; label: string; against: number; missing: number })[];
+  precedents: Precedent[];
   findings: ArmorFinding[];
   suggestions: Record<string, Clause[]>;
 }
@@ -481,6 +506,28 @@ export interface CaseDocument {
   text_length?: number;
   created_at: string;
   created_by_name: string;
+}
+
+export interface PowerOfAttorney {
+  id: number;
+  client: string;
+  kind: 'genel' | 'ozel';
+  notary: string;
+  journal_no: string;
+  issue_date: string;
+  expiry_date: string;
+  lawyers: string;
+  powers: string[];
+  status: 'gecerli' | 'azil' | 'istifa' | 'sona_erdi';
+  status_date: string;
+  note: string;
+  file_name: string;
+  mime_type: string;
+  text?: string;
+  fileBase64?: string | null;
+  created_at: string;
+  created_by_name: string;
+  cases: { id: number; title: string; status: string }[];
 }
 
 export interface OpposingSummary {

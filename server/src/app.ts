@@ -19,6 +19,7 @@ import { ApiError } from './errors.ts';
 import * as estates from './estates.ts';
 import * as casedocs from './casedocs.ts';
 import * as opposing from './opposing.ts';
+import * as poa from './poa.ts';
 import * as petitions from './petitions.ts';
 import type { DeepChecker } from './teyit.ts';
 import * as yargitay from './yargitay.ts';
@@ -76,6 +77,12 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; f
   app.get('/api/case-documents/:id', authed((req, user) => casedocs.getCaseDocument(db, user, id(req), req.query.file === '1')));
   app.put('/api/case-documents/:id', authed((req, user) => casedocs.updateCaseDocument(db, user, id(req), req.body ?? {})));
   app.delete('/api/case-documents/:id', authed((req, user) => casedocs.deleteCaseDocument(db, user, id(req))));
+  app.get('/api/powers', authed((req, user) => ({ powers: poa.POWERS_LIST, items: poa.listPoas(db, user, req.query as Record<string, string>) })));
+  app.post('/api/powers', authed((req, user) => poa.createPoa(db, user, req.body ?? {})));
+  app.post('/api/powers/parse', authed((req) => poa.parsePoaText(String(req.body?.text ?? ''))));
+  app.get('/api/powers/:id', authed((req, user) => poa.getPoa(db, user, id(req), req.query.file === '1')));
+  app.put('/api/powers/:id', authed((req, user) => poa.updatePoa(db, user, id(req), req.body ?? {})));
+  app.delete('/api/powers/:id', authed((req, user) => poa.deletePoa(db, user, id(req))));
   app.get('/api/opposing/:id', authed((req, user) => opposing.getOpposing(db, user, id(req))));
   app.post('/api/opposing/:id/teyit/deep', authed((req, user) => opposing.deepCheckOpposing(db, user, id(req), checker)));
 

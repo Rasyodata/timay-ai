@@ -4,6 +4,7 @@ import type { DB } from './db.ts';
 import { changeSummary, diffWords } from './diff.ts';
 import { buildDocx, readDocx } from './docx.ts';
 import { ApiError } from './errors.ts';
+import { precedentRisk, precedentsFor, type Party } from './precedents.ts';
 
 /*
  * Sözleşme zırhı: kural bankası (playbook), onaylı madde kütüphanesi, mevzuat denetimi,
@@ -546,8 +547,11 @@ export function reviewText(body: string, kind: string, side: Side, pb: Playbook)
     if (q || rule.pattern.test(body)) add({ key: `mevzuat-${rule.title}`, topic: rule.topic ?? '', verdict: 'mevzuat', severity: rule.severity, title: rule.title, note: rule.note, quote: q });
   }
 
-  const negative = findings.filter((f) => f.verdict !== 'lehte');
-  const score = Math.min(100, negative.reduce((s, f) => s + WEIGHT[f.severity], 0));
+  // Aleyhte hükümler tam, iki tarafı da ilgilendiren eksik ve mevzuat sorunları 0,6 ağırlıkla sayılır;
+  // böylece taraflar arasındaki fark tavana (100) takılmadan görünür.
+  // Puan yumuşak tavanla 100'e yaklaşır; çok sorunlu iki sözleşme de 100'e yapışıp aynı görünmez.
+  const raw = findings.reduce((s, f) => s + (f.verdict === 'aleyhte' ? 1 : f.verdict === 'lehte' ? 0 : 0.6) * WEIGHT[f.severity], 0);
+  const score = Math.round(100 * (1 - Math.exp(-raw / 80)));
   const band = score <= 30 ? 'dusuk' : score <= 70 ? 'orta' : 'yuksek';
   const order: Record<Verdict, number> = { aleyhte: 0, mevzuat: 1, eksik: 2, lehte: 3 };
   findings.sort((a, b) => order[a.verdict] - order[b.verdict] || WEIGHT[b.severity] - WEIGHT[a.severity]);
@@ -580,14 +584,56 @@ function loadContract(db: DB, user: User, id: number) {
   return row;
 }
 
+const SIDE_LABEL: Record<string, string> = { arsa_sahibi: 'Arsa sahibi', yuklenici: 'Yüklenici' };
+
+function bandOf(score: number) {
+  return score <= 30 ? 'dusuk' : score <= 70 ? 'orta' : 'yuksek';
+}
+
+/** Madde riski ile içtihat riskini birleştirir (taraf belli değilse yalnız madde riski). */
+function combinedRisk(body: string, kind: string, side: Side, pb: Playbook) {
+  const result = reviewText(body, kind, side, pb);
+  const party: Party = side === 'arsa_sahibi' || side === 'yuklenici' ? side : 'notr';
+  const precedents = precedentsFor(kind, result.findings.map((f) => f.topic));
+  const ictihat = precedentRisk(precedents, party);
+  const genel = party === 'notr' ? result.score : Math.round(result.score * 0.75 + ictihat.score * 0.25);
+  return {
+    result,
+    precedents,
+    party,
+    risk: { madde: result.score, ictihat: ictihat.score, genel, band: bandOf(genel), lehte: ictihat.lehte, aleyhte: ictihat.aleyhte },
+  };
+}
+
 export function contractReview(db: DB, user: User, id: number) {
   const c = loadContract(db, user, id);
   const pb = getPlaybook(db, user);
-  const result = reviewText(c.body, c.kind, (c.side || 'genel') as Side, pb);
+  const side = (c.side || 'genel') as Side;
+  const { result, precedents, party, risk } = combinedRisk(c.body, c.kind, side, pb);
   const library = listClauses(db, user, { kind: c.kind });
+  // Kat karşılığında iki tarafın riski ayrı ayrı hesaplanır.
+  const parties =
+    c.kind === 'kat-karsiligi'
+      ? (['arsa_sahibi', 'yuklenici'] as const).map((s) => {
+          const r = combinedRisk(c.body, c.kind, s, pb);
+          return {
+            side: s,
+            label: SIDE_LABEL[s],
+            ...r.risk,
+            against: r.result.findings.filter((f) => f.verdict === 'aleyhte').length,
+            missing: r.result.findings.filter((f) => f.verdict === 'eksik').length,
+          };
+        })
+      : [];
   return {
     ...result,
     side: c.side || 'genel',
+    risk,
+    parties,
+    precedents: precedents.map((p) => ({
+      ...p,
+      direction: p.favours === 'notr' || party === 'notr' ? 'notr' : p.favours === party ? 'lehte' : 'aleyhte',
+    })),
     suggestions: Object.fromEntries(
       [...new Set(result.findings.map((f) => f.topic).filter(Boolean))].map((t) => [t, library.filter((l) => l.topic === t)]),
     ),

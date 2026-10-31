@@ -350,6 +350,33 @@ CREATE TABLE IF NOT EXISTS case_documents (
   created_by INTEGER NOT NULL REFERENCES users(id),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- Vekâletnameler ve bağlı dava dosyaları.
+CREATE TABLE IF NOT EXISTS powers_of_attorney (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  client TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'genel',
+  notary TEXT NOT NULL DEFAULT '',
+  journal_no TEXT NOT NULL DEFAULT '',
+  issue_date TEXT NOT NULL DEFAULT '',
+  expiry_date TEXT NOT NULL DEFAULT '',
+  lawyers TEXT NOT NULL DEFAULT '',
+  powers TEXT NOT NULL DEFAULT '[]',
+  status TEXT NOT NULL DEFAULT 'gecerli',
+  status_date TEXT NOT NULL DEFAULT '',
+  note TEXT NOT NULL DEFAULT '',
+  file_name TEXT NOT NULL DEFAULT '',
+  mime_type TEXT NOT NULL DEFAULT '',
+  data BLOB,
+  text TEXT NOT NULL DEFAULT '',
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS poa_cases (
+  poa_id INTEGER NOT NULL REFERENCES powers_of_attorney(id),
+  case_id INTEGER NOT NULL REFERENCES cases(id),
+  PRIMARY KEY (poa_id, case_id)
+);
 -- Ajanda (dava defteri): avukatın kendi notları ve randevuları.
 CREATE TABLE IF NOT EXISTS agenda_items (
   id INTEGER PRIMARY KEY,

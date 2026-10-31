@@ -8,12 +8,15 @@ import {
   type ContractDetail,
   type ContractVersion,
   type HiddenChange,
+  type OnlineDecision,
+  type Precedent,
   type Playbook,
   type Signing,
   type User,
 } from './api';
 import { DOC_ACCEPT, documentText, readDocument, READ_PROGRESS } from './docread';
 import { Card, Empty, ErrorText, Field, formatDate, Icon, useAsync } from './ui';
+import { decisionTitle, importYargitay, searchYargitay } from './yargitay';
 
 // ---------------------------------------------------------------------------
 // Dosya okuma: Word ve UYAP belgesi sunucuda, PDF / TIF / resim bu bilgisayarda (OCR) okunur
@@ -83,6 +86,133 @@ export function FilePick({
         }}
       />
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Taraflara göre risk ve içtihat
+// ---------------------------------------------------------------------------
+
+function PartyRisk({ parties, side }: { parties: ArmorReview['parties']; side: string }) {
+  return (
+    <Card title="Taraflara göre risk">
+      <div className="party-risk">
+        {parties.map((p) => (
+          <div key={p.side} className={`party ${p.side === side ? 'ours' : ''}`}>
+            <div className="party-head">
+              <strong>{p.label}</strong>
+              {p.side === side && <span className="badge onayli">Biz</span>}
+              <span className={`band-label b-${p.band}`}>
+                {BAND[p.band]} · {p.genel}
+              </span>
+            </div>
+            <div className={`risk-bar b-${p.band}`}>
+              <span style={{ width: `${p.genel}%` }} />
+            </div>
+            <p className="muted small">
+              {p.against} aleyhte, {p.missing} eksik madde · madde riski {p.madde}, içtihat riski {p.ictihat}
+            </p>
+          </div>
+        ))}
+      </div>
+      <p className="muted small">
+        Genel risk, maddelerin %75’i ve Yargıtay içtihadının %25’i ile hesaplanır. Bir taraf için aleyhte olan hüküm genellikle diğerinin lehinedir.
+      </p>
+    </Card>
+  );
+}
+
+const DIRECTION: Record<Precedent['direction'], { label: string; cls: string }> = {
+  lehte: { label: 'Lehte içtihat', cls: 'v-lehte' },
+  aleyhte: { label: 'Aleyhte içtihat', cls: 'v-aleyhte' },
+  notr: { label: 'İki tarafı bağlar', cls: 'v-mevzuat' },
+};
+
+function PrecedentPanel({ precedents, side }: { precedents: Precedent[]; side: string }) {
+  const [open, setOpen] = useState<string | null>(null);
+  const [results, setResults] = useState<Record<string, { total: number; items: OnlineDecision[] } | string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+
+  async function load(p: Precedent) {
+    setOpen(open === p.id ? null : p.id);
+    if (results[p.id] || open === p.id) return;
+    setBusy(p.id);
+    try {
+      const r = await searchYargitay({ q: p.query });
+      setResults((x) => ({ ...x, [p.id]: r }));
+    } catch (e) {
+      setResults((x) => ({ ...x, [p.id]: (e as Error).message }));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function save(p: Precedent, d: OnlineDecision) {
+    setBusy(d.documentId);
+    try {
+      const saved = await importYargitay(d);
+      setResults((x) => {
+        const cur = x[p.id];
+        if (typeof cur !== 'object') return x;
+        return { ...x, [p.id]: { ...cur, items: cur.items.map((i) => (i.documentId === d.documentId ? { ...i, archiveId: saved.id } : i)) } };
+      });
+    } catch (e) {
+      setResults((x) => ({ ...x, [p.id]: (e as Error).message }));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <Card title="Yargıtay içtihadı" className="flush">
+      {(!side || side === 'genel') && <p className="muted small inset-note top">Lehte ve aleyhte ayrımı için yukarıdan “Biz kimiz?” seçin.</p>}
+      <ul className="precedent-list">
+        {precedents.map((p) => {
+          const res = results[p.id];
+          return (
+            <li key={p.id}>
+              <div className="finding-head">
+                <span className={`verdict-pill ${DIRECTION[p.direction].cls}`}>{DIRECTION[p.direction].label}</span>
+                <span className="muted small">{p.basis}</span>
+              </div>
+              <p className="small">{p.principle}</p>
+              <button className="link small" onClick={() => load(p)} disabled={busy === p.id}>
+                <Icon name="scale" /> {busy === p.id ? 'Kararlar getiriliyor…' : open === p.id ? 'Kararları gizle' : 'Yargıtay kararlarını getir'}
+              </button>
+              {open === p.id && res && (
+                <div className="precedent-results">
+                  {typeof res === 'string' ? (
+                    <p className="error small">{res}</p>
+                  ) : res.items.length === 0 ? (
+                    <p className="muted small">Karar bulunamadı.</p>
+                  ) : (
+                    <>
+                      <p className="muted small">“{p.query}” için {res.total.toLocaleString('tr-TR')} karar; en yeni {res.items.length} tanesi:</p>
+                      <ul>
+                        {res.items.slice(0, 5).map((d) => (
+                          <li key={d.documentId}>
+                            <span className="small">
+                              {decisionTitle(d)} {d.date && <span className="muted">· {formatDate(d.date)}</span>}
+                            </span>
+                            {d.archiveId ? (
+                              <span className="badge onayli">Arşivde</span>
+                            ) : (
+                              <button className="small-btn" disabled={busy !== null} onClick={() => save(p, d)}>
+                                {busy === d.documentId ? 'Ekleniyor…' : 'Arşive ekle'}
+                              </button>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
   );
 }
 
@@ -207,12 +337,20 @@ export function ArmorTab({ data, onChanged }: { data: ContractDetail; onChanged:
       <Card className="armor-head">
         {r && (
           <div className="armor-summary">
-            <ScoreRing score={r.score} band={r.band} />
+            <ScoreRing score={r.risk.genel} band={r.risk.band} />
             <div>
-              <div className={`band-label b-${r.band}`}>
-                {BAND[r.band]} · {r.score}/100
+              <div className={`band-label b-${r.risk.band}`}>
+                {BAND[r.risk.band]} · {r.risk.genel}/100
               </div>
-              <p className="muted small">{BAND_NOTE[r.band]}</p>
+              <p className="muted small">{BAND_NOTE[r.risk.band]}</p>
+              <div className="risk-parts small">
+                <span>
+                  Madde riski <strong>{r.risk.madde}</strong>
+                </span>
+                <span>
+                  İçtihat riski <strong>{data.side === 'genel' || !data.side ? '—' : r.risk.ictihat}</strong>
+                </span>
+              </div>
               <div className="verdict-counts">
                 <span className="v-aleyhte">{counts.aleyhte} aleyhte</span>
                 <span className="v-eksik">{counts.eksik} eksik</span>
@@ -262,6 +400,12 @@ export function ArmorTab({ data, onChanged }: { data: ContractDetail; onChanged:
         <ErrorText error={err ?? review.error} />
         {upload && <UploadResult result={upload} onClose={() => setUpload(null)} />}
       </Card>
+      {r && (r.parties.length > 0 || r.precedents.length > 0) && (
+        <div className="grid-2 armor-extra">
+          {r.parties.length > 0 && <PartyRisk parties={r.parties} side={data.side} />}
+          {r.precedents.length > 0 && <PrecedentPanel precedents={r.precedents} side={data.side} />}
+        </div>
+      )}
       {r && (
         <div className="armor-split">
           <Card title="Sözleşme metni" className="armor-left">

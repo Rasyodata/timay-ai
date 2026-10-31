@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { api, type ArchiveDecision, type OnlineDecision, type User } from './api';
 import { Card, Empty, ErrorText, Field, formatDate, Icon, PageHeader, Stat, Tabs, useAsync } from './ui';
+import { decisionTitle, importYargitay, searchYargitay } from './yargitay';
 
 const CHAMBERS = [
   'Hukuk Genel Kurulu',
@@ -9,9 +10,7 @@ const CHAMBERS = [
   ...Array.from({ length: 12 }, (_, i) => `${i + 1}. Ceza Dairesi`),
 ];
 
-function title(d: { chamber: string; court: string; esas_no?: string; karar_no?: string; esasNo?: string; kararNo?: string }) {
-  return `${d.court} ${d.chamber} · ${d.esas_no ?? d.esasNo} E. / ${d.karar_no ?? d.kararNo} K.`;
-}
+const title = decisionTitle;
 
 export function DecisionsView({ user }: { user: User }) {
   const [tab, setTab] = useState<'arsiv' | 'yargitay' | 'ekle'>('arsiv');
@@ -134,23 +133,7 @@ function OnlineSearch({ onImported }: { onImported: (id: number) => void }) {
     setBusy('search');
     setErr(null);
     try {
-      const bedesten = window.timay?.bedesten;
-      const input = { ...form, exact: form.exact ? '1' : '', page: String(p) };
-      if (bedesten) {
-        // Karar veritabanına bu bilgisayardan ulaşılır; sunucu arama gövdesini kurar ve arşivdekileri işaretler.
-        const run = async (withDates: boolean) => {
-          const data = await api<Record<string, unknown>>('/yargitay/body', { body: { ...input, withDates } });
-          return (await bedesten('searchDocuments', data)) as { data?: unknown; metadata?: { FMTE?: string } };
-        };
-        const dated = Boolean(form.yearFrom || form.yearTo);
-        let raw = dated ? await run(true).catch(() => ({}) as { data?: unknown; metadata?: { FMTE?: string } }) : await run(true);
-        // Tarih süzgeci kabul edilmezse tarihsiz arar, yıl aralığını sonuçta uygular.
-        if (!raw.data && dated) raw = await run(false);
-        if (!raw.data) throw new Error(raw.metadata?.FMTE || 'Karar veritabanından geçersiz yanıt alındı.');
-        setResult(await api('/yargitay/map', { body: { data: raw.data, filter: { yearFrom: form.yearFrom, yearTo: form.yearTo } } }));
-      } else {
-        setResult(await api(`/yargitay/search?${new URLSearchParams(input)}`));
-      }
+      setResult(await searchYargitay({ ...form, page: p }));
       setPage(p);
     } catch (e) {
       setErr((e as Error).message);
@@ -162,15 +145,7 @@ function OnlineSearch({ onImported }: { onImported: (id: number) => void }) {
   async function importDoc(d: OnlineDecision) {
     setBusy(d.documentId);
     try {
-      const body: Record<string, unknown> = { documentId: d.documentId, date: d.date, chamber: d.chamber };
-      const bedesten = window.timay?.bedesten;
-      if (bedesten) {
-        const raw = (await bedesten('getDocumentContent', { documentId: d.documentId })) as { data?: { content?: string; mimeType?: string } };
-        if (!raw.data?.content) throw new Error('Karar metni alınamadı.');
-        body.content = raw.data.content;
-        body.mimeType = raw.data.mimeType;
-      }
-      const saved = await api<ArchiveDecision>('/yargitay/import', { body });
+      const saved = await importYargitay(d);
       setResult((r) => r && { ...r, items: r.items.map((x) => (x.documentId === d.documentId ? { ...x, archiveId: saved.id } : x)) });
       onImported(saved.id);
     } catch (e) {
