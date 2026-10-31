@@ -9,6 +9,7 @@ import { NotesView } from './Notes';
 import { ClientsView, ClientView } from './Clients';
 import { MediationFileView, MediationView } from './Mediation';
 import { BackupView, useDailyBackup } from './Backup';
+import { AiView } from './Ai';
 import { SearchView } from './Search';
 import { NotificationBell } from './Notifications';
 import { ContractGroupView } from './ContractGroups';
@@ -54,6 +55,7 @@ export type View =
   | { name: 'settings' }
   | { name: 'backup' }
   | { name: 'mediation' }
+  | { name: 'ai'; chatId?: number; tab?: string }
   | { name: 'clients' }
   | { name: 'client'; id: number }
   | { name: 'mediation-file'; id: number }
@@ -220,6 +222,7 @@ const NAV: { section: string; items: { name: View['name']; label: string; icon: 
     section: 'Büro',
     items: [
       { name: 'dashboard', label: 'Ana sayfa', icon: 'home' },
+      { name: 'ai', label: 'Yapay zekâ', icon: 'spark' },
       { name: 'search', label: 'Ara (Ctrl+K)', icon: 'search' },
       { name: 'agenda', label: 'Ajanda', icon: 'calendar' },
       { name: 'tasks', label: 'Görevler', icon: 'check' },
@@ -372,6 +375,9 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
       break;
     case 'client':
       content = <ClientView key={view.id} id={view.id} go={go} />;
+      break;
+    case 'ai':
+      content = <AiView key={view.chatId ?? 0} go={go} chatId={view.chatId} tab={view.tab} />;
       break;
     case 'mediation':
       content = <MediationView go={go} />;

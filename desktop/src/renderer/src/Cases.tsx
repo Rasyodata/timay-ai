@@ -26,6 +26,7 @@ import { DOC_KIND_OPTIONS } from './Disciplines';
 import { skeleton } from './skeletons';
 import { FilePick } from './Clm';
 import { documentText } from './docread';
+import { CaseAiTab } from './Ai';
 import { Card, DueLabel, Empty, ErrorText, Field, formatDate, formatTL, Icon, PageHeader, StatusBadge, Tabs, today, useAsync } from './ui';
 
 export function useAreas() {
@@ -193,7 +194,7 @@ export function CasesView({ go }: { go: Go }) {
   );
 }
 
-type CaseTab = 'ozet' | 'notlar' | 'safahat' | 'genel' | 'belgeler' | 'dilekceler' | 'durusmalar' | 'karsi' | 'gorevler' | 'muhasebe';
+type CaseTab = 'yz' | 'ozet' | 'notlar' | 'safahat' | 'genel' | 'belgeler' | 'dilekceler' | 'durusmalar' | 'karsi' | 'gorevler' | 'muhasebe';
 
 export function CaseView({ id, user, go, initialTab }: { id: number; user: User; go: Go; initialTab?: string }) {
   const { data, error, setData, reload } = useAsync(() => api<CaseDetail>(`/cases/${id}`), [id]);
@@ -220,6 +221,7 @@ export function CaseView({ id, user, go, initialTab }: { id: number; user: User;
         onChange={setTab}
         items={[
           ['ozet', 'Özet ve strateji'],
+          ['yz', 'Yapay zekâ'],
           ['genel', 'Genel bilgiler'],
           ['safahat', 'Safahat'],
           ['notlar', 'Notlar'],
@@ -231,6 +233,7 @@ export function CaseView({ id, user, go, initialTab }: { id: number; user: User;
           ...(user.can_finance ? ([['muhasebe', 'Masraf ve ücret']] as [CaseTab, string][]) : []),
         ]}
       />
+      {tab === 'yz' && <CaseAiTab caseId={id} go={go} />}
       {tab === 'genel' && <CaseGeneral data={data} setData={setData} areas={areas} user={user} go={go} />}
       {tab === 'ozet' && <CaseSummaryTab caseId={id} reloadKey={safKey} />}
       {tab === 'notlar' && <CaseNotes caseId={id} go={go} />}

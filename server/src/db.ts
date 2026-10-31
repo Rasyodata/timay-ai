@@ -525,6 +525,38 @@ CREATE TABLE IF NOT EXISTS office_settings (
   letterhead TEXT NOT NULL DEFAULT '',
   use_letterhead INTEGER NOT NULL DEFAULT 1
 );
+-- Yapay zekâ: asistan sohbetleri (kişiye özel) ve kayıtlı sonuçlar (sözleşme okuma, içtihat, infaz).
+CREATE TABLE IF NOT EXISTS ai_chats (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  mode TEXT NOT NULL DEFAULT 'genel',
+  case_id INTEGER REFERENCES cases(id),
+  contract_id INTEGER REFERENCES contracts(id),
+  title TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS ai_messages (
+  id INTEGER PRIMARY KEY,
+  chat_id INTEGER NOT NULL REFERENCES ai_chats(id),
+  role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+  content TEXT NOT NULL,
+  model TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS ai_results (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  kind TEXT NOT NULL,
+  ref_id INTEGER,
+  case_id INTEGER REFERENCES cases(id),
+  input TEXT NOT NULL DEFAULT '',
+  result TEXT NOT NULL,
+  model TEXT NOT NULL DEFAULT '',
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 -- Ajanda (dava defteri): avukatın kendi notları ve randevuları.
 CREATE TABLE IF NOT EXISTS agenda_items (
   id INTEGER PRIMARY KEY,

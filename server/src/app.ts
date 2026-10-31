@@ -14,6 +14,8 @@ import { buildUdf, plainDocx } from './docx.ts';
 import { extractText, unpack } from './files.ts';
 import * as notes from './notes.ts';
 import * as backup from './backup.ts';
+import * as ai from './ai.ts';
+import type { AiModel } from './claude.ts';
 import { searchAll } from './search.ts';
 import { caseSummary } from './casesummary.ts';
 import { DOC_KINDS, reviewForUser } from './disciplines.ts';
@@ -41,8 +43,9 @@ import * as yargitay from './yargitay.ts';
 
 type Handler = (req: Request, user: auth.User) => unknown;
 
-export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; fetch?: yargitay.Fetch; backupDir?: string | null } = {}) {
+export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; ai?: AiModel | null; fetch?: yargitay.Fetch; backupDir?: string | null } = {}) {
   const checker = options.deepChecker ?? null;
+  const aiModel = options.ai ?? null;
   const fetchImpl = options.fetch ?? (fetch as unknown as yargitay.Fetch);
   const app = express();
   app.use(express.json({ limit: '80mb' }));
@@ -66,7 +69,7 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; f
   };
   const id = (req: Request, name = 'id') => Number(req.params[name]);
 
-  app.get('/api/health', (_req, res) => res.json({ ok: true, deepTeyit: checker !== null }));
+  app.get('/api/health', (_req, res) => res.json({ ok: true, deepTeyit: checker !== null, ai: aiModel !== null }));
 
   app.post('/api/register', open((req) => auth.registerOffice(db, req.body)));
   app.post('/api/login', open((req) => auth.login(db, req.body)));
@@ -75,6 +78,20 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; f
   app.get('/api/users', authed((_req, user) => auth.listOfficeUsers(db, user.office_id)));
   app.put('/api/users/:id/permissions', authed((req, user) => auth.setPermissions(db, user, id(req), req.body)));
   app.post('/api/invites', authed((req, user) => auth.createInvite(db, user, req.body)));
+
+  // Yapay zekâ (Claude)
+  app.get('/api/ai/status', authed(() => ai.aiStatus(aiModel)));
+  app.get('/api/ai/chats', authed((_req, user) => ai.listChats(db, user)));
+  app.post('/api/ai/chats', authed((req, user) => ai.createChat(db, user, req.body)));
+  app.get('/api/ai/chats/:id', authed((req, user) => ai.getChat(db, user, id(req))));
+  app.delete('/api/ai/chats/:id', authed((req, user) => ai.deleteChat(db, user, id(req))));
+  app.post('/api/ai/chats/:id/messages', authed((req, user) => ai.sendMessage(db, user, id(req), req.body, aiModel)));
+  app.post('/api/ai/petition-draft', authed((req, user) => ai.draftPetition(db, user, req.body, aiModel)));
+  app.post('/api/ai/contracts/:id/review', authed((req, user) => ai.reviewContract(db, user, id(req), req.body ?? {}, aiModel)));
+  app.get('/api/ai/contracts/:id/review', authed((req, user) => ai.lastResult(db, user, 'sozlesme', id(req))));
+  app.post('/api/ai/classify-decision', authed((req, user) => ai.classifyDecision(db, user, req.body, aiModel)));
+  app.post('/api/ai/infaz', authed((req, user) => ai.infazCalc(db, user, req.body, aiModel)));
+  app.get('/api/ai/infaz', authed((_req, user) => ai.infazHistory(db, user)));
 
   app.get('/api/cases', authed((_req, user) => cases.listCases(db, user)));
   app.post('/api/cases', authed((req, user) => cases.createCase(db, user, req.body)));

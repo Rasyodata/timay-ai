@@ -177,10 +177,12 @@ export type IconName =
   | 'chart'
   | 'refresh'
   | 'bell'
-  | 'pin';
+  | 'pin'
+  | 'spark';
 
 const PATHS: Record<IconName, string> = {
   pin: 'M9 3h6l-1 6 4 4H6l4-4zM12 13v8',
+  spark: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z',
   bell: 'M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0',
   refresh: 'M20 11a8 8 0 0 0-14.6-4.5M4 4v4h4M4 13a8 8 0 0 0 14.6 4.5M20 20v-4h-4',
   home: 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
