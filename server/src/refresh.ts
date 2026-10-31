@@ -13,7 +13,7 @@ import { ApiError } from './errors.ts';
  */
 
 /** Analiz kurallarının sürümü. Kurallar değiştiğinde artırılır; eski analizler "güncel değil" olur. */
-export const ENGINE = '2026.10.31';
+export const ENGINE = '2026.10.31-2';
 
 export type Entity = 'case' | 'contract' | 'group';
 export type Level = 'yuksek' | 'orta' | 'dusuk';

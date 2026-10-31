@@ -5,6 +5,7 @@ import { CalculatorsView } from './Calculators';
 import { CasesView, CaseView } from './Cases';
 import { ConsultancyClientView, ConsultancyView } from './Consultancy';
 import { ContractsView, ContractView } from './Contracts';
+import { NotificationBell } from './Notifications';
 import { ContractGroupView } from './ContractGroups';
 import { DashboardView } from './Dashboard';
 import { DeadlinesView } from './Deadlines';
@@ -317,7 +318,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
       content = <EstateView id={view.id} go={go} />;
       break;
     case 'decisions':
-      content = <DecisionsView user={user} />;
+      content = <DecisionsView user={user} go={go} />;
       break;
     case 'team':
       content = <TeamView user={user} />;
@@ -338,6 +339,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
       <nav className="sidebar">
         <div className="logo">
           <span className="logo-mark">T</span> Timay
+          <NotificationBell go={go} />
         </div>
         {NAV.map((group) => (
           <div key={group.section} className="nav-group">

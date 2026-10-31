@@ -403,6 +403,36 @@ CREATE TABLE IF NOT EXISTS analysis_runs (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS analysis_runs_entity ON analysis_runs (office_id, entity, entity_id);
+-- Safahat: davanın aşamaları (tensip, ön inceleme, karar, kanun yolu…).
+CREATE TABLE IF NOT EXISTS case_stages (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  case_id INTEGER NOT NULL REFERENCES cases(id),
+  stage TEXT NOT NULL,
+  date TEXT NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  created_by INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- Bildirim merkezi: kullanıcının okuduğu bildirimler (bildirimler anlık hesaplanır).
+CREATE TABLE IF NOT EXISTS notification_reads (
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  key TEXT NOT NULL,
+  read_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, key)
+);
+-- Mevzuat takibi: büronun izlediği kanun değişiklikleri.
+CREATE TABLE IF NOT EXISTS law_changes (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  law TEXT NOT NULL,
+  articles TEXT NOT NULL DEFAULT '',
+  title TEXT NOT NULL,
+  effective_date TEXT NOT NULL DEFAULT '',
+  summary TEXT NOT NULL DEFAULT '',
+  created_by INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 -- Ajanda (dava defteri): avukatın kendi notları ve randevuları.
 CREATE TABLE IF NOT EXISTS agenda_items (
   id INTEGER PRIMARY KEY,
@@ -423,6 +453,7 @@ function migrate(db: DB) {
   if (!caseColumns.includes('client')) db.exec("ALTER TABLE cases ADD COLUMN client TEXT NOT NULL DEFAULT ''");
   if (!caseColumns.includes('responsible_id')) db.exec('ALTER TABLE cases ADD COLUMN responsible_id INTEGER REFERENCES users(id)');
   if (!caseColumns.includes('status')) db.exec("ALTER TABLE cases ADD COLUMN status TEXT NOT NULL DEFAULT 'acik'");
+  if (!caseColumns.includes('stage')) db.exec("ALTER TABLE cases ADD COLUMN stage TEXT NOT NULL DEFAULT ''");
 
   const userColumns = (db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).map((c) => c.name);
   if (!userColumns.includes('is_admin')) {

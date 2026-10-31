@@ -437,6 +437,8 @@ export interface ArchiveDecision {
   source_url: string;
   excerpt?: string;
   text?: string;
+  relevance?: number | null;
+  articles?: string[];
 }
 
 export interface OnlineDecision {

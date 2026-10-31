@@ -4134,3 +4134,385 @@ button.kpi {
   flex-direction: column;
   min-width: 0;
 }
+
+/* ---------------------------------------------------------------- safahat */
+.sf-strip {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.sf-line {
+  flex: 1;
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 14px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.sf-step {
+  position: relative;
+  flex: 1;
+  min-width: 70px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.sf-step + .sf-step::before {
+  content: '';
+  position: absolute;
+  top: 13px;
+  right: calc(50% + 16px);
+  width: calc(100% - 32px);
+  height: 2px;
+  background: var(--border-strong);
+}
+.sf-step.s-done + .sf-step::before,
+.sf-step.s-done + .sf-step.s-current::before {
+  background: var(--accent);
+}
+.sf-dot {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  border: 2px solid var(--border-strong);
+  color: var(--text-2);
+  background: var(--panel);
+  z-index: 1;
+}
+.sf-dot svg {
+  width: 14px;
+  height: 14px;
+}
+.sf-step.s-done .sf-dot {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.sf-step.s-current .sf-dot {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(42, 120, 214, 0.18);
+}
+.sf-label {
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.25;
+}
+.sf-step.s-current .sf-label {
+  color: var(--text);
+  font-weight: 700;
+}
+.sf-label small {
+  color: var(--muted);
+  font-weight: 400;
+}
+.sf-hearing {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 170px;
+  padding: 10px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.sf-hearing strong {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.sf-hearing span {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.sf-hearing.soon {
+  border-left-color: var(--bad);
+}
+.sf-hearing.soon strong {
+  color: var(--bad);
+}
+.sf-deadline {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.sf-deadline.on {
+  border-color: var(--warn);
+  background: rgba(237, 161, 0, 0.08);
+}
+.sf-deadline > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sf-head {
+  margin: 12px 0 6px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.sf-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sf-steps label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.sf-steps label .muted {
+  margin-left: auto;
+}
+.sf-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sf-history li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+}
+.sf-history li:first-child {
+  border-top: none;
+}
+.sf-history .item-text {
+  flex: 1;
+}
+.sf-history-date {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 78px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- bildirim merkezi */
+.nf {
+  margin-left: auto;
+}
+.nf-bell {
+  position: relative;
+  color: #c9d3e6;
+  padding: 6px;
+}
+.nf-bell svg {
+  width: 18px;
+  height: 18px;
+}
+.nf-bell.has svg {
+  color: #fff;
+  animation: nf-ring 1.2s ease-in-out 1;
+}
+@keyframes nf-ring {
+  20%,
+  60% {
+    transform: rotate(-14deg);
+  }
+  40%,
+  80% {
+    transform: rotate(14deg);
+  }
+}
+.nf-badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #e5484d;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+}
+.nf-panel {
+  position: fixed;
+  left: 244px;
+  top: 12px;
+  width: 380px;
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+  z-index: 120;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: normal;
+}
+.nf-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.nf-empty {
+  padding: 14px;
+}
+.nf-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.nf-list li {
+  display: flex;
+  gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+  border-left: 3px solid transparent;
+}
+.nf-list li:first-child {
+  border-top: none;
+}
+.nf-list li:hover {
+  background: var(--hover, rgba(127, 127, 127, 0.06));
+}
+.nf-list li.l-kritik {
+  border-left-color: var(--bad);
+}
+.nf-list li.l-uyari {
+  border-left-color: var(--warn);
+}
+.nf-list li.l-bilgi {
+  border-left-color: var(--accent);
+}
+.nf-list li.read {
+  opacity: 0.6;
+  border-left-color: transparent;
+}
+.nf-icon svg {
+  width: 16px;
+  height: 16px;
+  color: var(--text-2);
+}
+.nf-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.nf-text span {
+  color: var(--text-2);
+  font-size: 12px;
+}
+@media (max-width: 900px) {
+  .sf-strip {
+    flex-direction: column;
+  }
+}
+
+label.sf-deadline,
+.sf-steps label {
+  flex-direction: row;
+  font-weight: 400;
+}
+.sf-deadline input,
+.sf-steps input {
+  width: auto;
+  flex: none;
+  margin-top: 2px;
+}
+
+/* ---------------------------------------------------------------- içtihat uygunluğu, mevzuat takibi */
+.decision-list li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.rel-pill {
+  flex: none;
+  min-width: 44px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  background: var(--muted);
+}
+.rel-pill.hi {
+  background: var(--ok);
+}
+.rel-pill.mid {
+  background: var(--warn);
+}
+.art-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.law-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.law-list > li {
+  border-top: 1px solid var(--border);
+}
+.law-list > li:first-child {
+  border-top: none;
+}
+.law-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+}
+.law-head .item-text {
+  flex: 1;
+}
+.law-impact {
+  list-style: none;
+  margin: 0;
+  padding: 0 16px 12px 56px;
+}
+.law-impact li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 0;
+  border-top: 1px dashed var(--border);
+}
+.law-impact q {
+  display: block;
+  margin-top: 2px;
+  font-style: italic;
+  color: var(--text-2);
+}

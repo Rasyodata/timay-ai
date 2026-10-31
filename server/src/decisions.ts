@@ -1,3 +1,4 @@
+import { extractArticles, relevance } from './mevzuat.ts';
 import type { DB } from './db.ts';
 import { ApiError } from './errors.ts';
 
@@ -75,12 +76,22 @@ export function searchArchive(db: DB, input: { q?: string; chamber?: string; yea
   const limit = Math.min(Number(input.limit ?? 20) || 20, 100);
   const offset = Math.max(Number(input.offset ?? 0) || 0, 0);
   const total = (db.prepare(`SELECT COUNT(*) AS n FROM decisions ${clause}`).get(...params) as { n: number }).n;
-  const items = db
+  const words = q && !NO_PATTERN.test(q);
+  // Kelimeyle aramada en çok 300 eşleşme uygunluk yüzdesine göre sıralanır.
+  const rows = db
     .prepare(
-      `SELECT id, court, chamber, esas_no, karar_no, decision_date, source_url, substr(text, 1, 400) AS excerpt
+      `SELECT id, court, chamber, esas_no, karar_no, decision_date, source_url, text
        FROM decisions ${clause} ORDER BY ${q ? 'decision_date DESC' : 'id DESC'} LIMIT ? OFFSET ?`,
     )
-    .all(...params, limit, offset);
+    .all(...params, words ? 300 : limit, words ? 0 : offset) as { text: string; [k: string]: unknown }[];
+  const scored = rows.map(({ text, ...r }) => ({
+    ...r,
+    excerpt: text.slice(0, 400),
+    relevance: words ? relevance(text, q) : null,
+    articles: extractArticles(text).slice(0, 6).map((a) => a.label),
+  }));
+  if (words) scored.sort((a, b) => (b.relevance ?? 0) - (a.relevance ?? 0));
+  const items = words ? scored.slice(offset, offset + limit) : scored;
   return { total, items };
 }
 

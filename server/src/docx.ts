@@ -243,3 +243,44 @@ export function readUdf(buf: Buffer): string {
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
+
+/** Düz metinden Word belgesi (değişiklik izleme kapalı). */
+export function plainDocx(text: string): Buffer {
+  const doc = buildDocx([{ op: 'eq', text }], '');
+  const files = readZip(doc);
+  const out: [string, string | Buffer][] = [...files.entries()].map(([name, data]) =>
+    name === 'word/settings.xml'
+      ? [name, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>']
+      : [name, data],
+  );
+  return writeZip(out);
+}
+
+/**
+ * Düz metinden UYAP Doküman Editörü (.udf) belgesi üretir: content.xml içinde metin (CDATA),
+ * her paragraf için başlangıç ve uzunluk, Times New Roman 12 punto, A4 kenar boşlukları.
+ */
+export function buildUdf(text: string): Buffer {
+  const body = text.replace(/\r\n?/g, '\n').replace(/]]>/g, ']] >');
+  const paragraphs: string[] = [];
+  let offset = 0;
+  for (const line of body.split('\n')) {
+    const length = line.length + 1;
+    // Başlık gibi kısa ve tamamı büyük harf satırlar ortalanır, diğerleri iki yana yaslanır.
+    const heading = line.trim().length > 0 && line.trim().length < 70 && line === line.toLocaleUpperCase('tr') && /\p{L}/u.test(line);
+    paragraphs.push(
+      `<paragraph Alignment="${heading ? 1 : 3}" LeftIndent="0.0" RightIndent="0.0" FirstLineIndent="0.0" LineSpacing="0.5" SpaceAbove="0.0" SpaceBelow="0.0" family="Times New Roman" size="12"><content family="Times New Roman" size="12"${heading ? ' bold="true"' : ''} startOffset="${offset}" length="${length}" /></paragraph>`,
+    );
+    offset += length;
+  }
+  const xml = `<?xml version="1.0" encoding="UTF-8" ?>
+<template format_id="1.8">
+<content><![CDATA[${body}\n]]></content>
+<properties><pageFormat mediaSizeName="1" leftMargin="70.8661413192749" rightMargin="70.8661413192749" topMargin="56.69291305541992" bottomMargin="56.69291305541992" paperOrientation="1" headerFOffset="20.0" footerFOffset="20.0" /></properties>
+<elements resolver="hvl-default">
+${paragraphs.join('\n')}
+</elements>
+<styles><style name="default" description="Geçerli" family="Dialog" size="12" bold="false" italic="false" foreground="-13421773" FONT_ATTRIBUTE_KEY="javax.swing.plaf.FontUIResource[family=Dialog,name=Dialog,style=plain,size=12]" /><style name="hvl-default" family="Times New Roman" size="12" description="Gövde" /></styles>
+</template>`;
+  return writeZip([['content.xml', xml]]);
+}
