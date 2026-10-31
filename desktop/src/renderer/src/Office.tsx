@@ -1,3 +1,4 @@
+import { LetterheadCard } from './Clients';
 import { useState, type FormEvent } from 'react';
 import { api, type User } from './api';
 import { Card, ErrorText, PageHeader, useAsync } from './ui';
@@ -116,6 +117,7 @@ export function TeamView({ user }: { user: User }) {
           )}
         </Card>
       )}
+      {Boolean(user.is_admin) && <LetterheadCard />}
     </div>
   );
 }

@@ -4972,3 +4972,26 @@ button.danger:disabled {
   background: color-mix(in srgb, var(--bad) 12%, transparent);
   color: var(--bad);
 }
+
+/* Müvekkiller */
+.client-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.client-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.client-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.client-list li:last-child {
+  border-bottom: 0;
+}

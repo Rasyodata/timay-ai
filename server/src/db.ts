@@ -507,6 +507,24 @@ CREATE TABLE IF NOT EXISTS mediation_meetings (
   method TEXT NOT NULL DEFAULT 'yuz_yuze',
   note TEXT NOT NULL DEFAULT ''
 );
+-- Müvekkil kartları ve büro antet bilgisi.
+CREATE TABLE IF NOT EXISTS clients (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'kisi',
+  id_no TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  email TEXT NOT NULL DEFAULT '',
+  address TEXT NOT NULL DEFAULT '',
+  note TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS office_settings (
+  office_id INTEGER PRIMARY KEY REFERENCES offices(id),
+  letterhead TEXT NOT NULL DEFAULT '',
+  use_letterhead INTEGER NOT NULL DEFAULT 1
+);
 -- Ajanda (dava defteri): avukatın kendi notları ve randevuları.
 CREATE TABLE IF NOT EXISTS agenda_items (
   id INTEGER PRIMARY KEY,
