@@ -3,6 +3,7 @@ import { renewalNotice } from './clm.ts';
 import type { DB } from './db.ts';
 import { ApiError } from './errors.ts';
 import { DATE, optionalDate, ownedCaseId } from './money.ts';
+import { poaRisks } from './poa.ts';
 
 /**
  * Önleyici hukuk: yasal süre hesaplayıcı, süre takibi ve büro genelinde risk uyarıları.
@@ -302,6 +303,18 @@ export function risks(db: DB, user: User): Risk[] {
       title: `Açık dosyada ileri tarihli duruşma ya da süre yok: ${c.title}`,
       detail: 'Dosyanın son durumunu UYAP’tan kontrol edip duruşma ya da süre girin.',
       link: { view: 'case', id: c.id },
+    });
+  }
+
+  const vek = poaRisks(db, user, today, addDays(30));
+  for (const p of vek.poa) out.push({ level: p.level, area: 'Vekâletname', title: p.title, detail: p.detail, link: { view: 'powers', id: p.id } });
+  if (vek.missing.length) {
+    out.push({
+      level: 'orta',
+      area: 'Vekâletname',
+      title: `${vek.missing.length} açık dosyada geçerli vekâletname kaydı yok`,
+      detail: vek.missing.slice(0, 5).map((c) => c.title).join(', ') + (vek.missing.length > 5 ? '…' : ''),
+      link: { view: 'powers' },
     });
   }
 

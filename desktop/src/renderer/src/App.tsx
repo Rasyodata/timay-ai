@@ -14,6 +14,7 @@ import { DecisionsView } from './Archive';
 import { TeamView } from './Office';
 import { applyTheme, ConnectionBanner, SettingsGate, SettingsView } from './Settings';
 import { OpposingView, PetitionView } from './Petition';
+import { PowersView } from './Powers';
 import { TemplatesView } from './Templates';
 import { ErrorText, Icon, type IconName } from './ui';
 
@@ -41,7 +42,8 @@ export type View =
   | { name: 'decisions' }
   | { name: 'team' }
   | { name: 'settings' }
-  | { name: 'calculators' };
+  | { name: 'calculators' }
+  | { name: 'powers'; id?: number };
 
 export type Go = (view: View) => void;
 
@@ -213,6 +215,7 @@ const NAV: { section: string; items: { name: View['name']; label: string; icon: 
     section: 'Hukuk',
     items: [
       { name: 'cases', label: 'Dava dosyaları', icon: 'folder' },
+      { name: 'powers', label: 'Vekâletnameler', icon: 'pen' },
       { name: 'templates', label: 'Dilekçe şablonları', icon: 'book' },
       { name: 'contracts', label: 'Sözleşmeler', icon: 'contract' },
       { name: 'consultancy', label: 'Danışmanlık', icon: 'briefcase' },
@@ -312,6 +315,9 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
       break;
     case 'team':
       content = <TeamView user={user} />;
+      break;
+    case 'powers':
+      content = <PowersView key={view.id ?? 0} go={go} initialId={view.id} />;
       break;
     case 'calculators':
       content = <CalculatorsView />;

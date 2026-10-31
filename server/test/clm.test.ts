@@ -92,6 +92,28 @@ describe('sözleşme zırhı', () => {
     assert.equal(review.findings.find((f) => f.key === 'noter'), undefined);
   });
 
+  it('içtihat riski ve taraflara göre risk: arsa sahibi ve yüklenici ayrı puanlanır', () => {
+    const c = contracts.createContract(db, a, { title: 'Kat karşılığı', kind: 'kat-karsiligi', body: KOTU });
+    clm.setSide(db, a, c.id, 'arsa_sahibi');
+    const r = clm.contractReview(db, a, c.id);
+    assert.ok(r.precedents.length >= 4);
+    const kira = r.precedents.find((p) => p.id === 'kira-kaybi')!;
+    assert.equal(kira.direction, 'lehte');
+    assert.equal(r.precedents.find((p) => p.id === 'cezai-indirim')?.direction ?? 'aleyhte', 'aleyhte');
+    assert.ok(r.risk.ictihat < 50, `arsa sahibi lehine içtihat ağır basmalı: ${r.risk.ictihat}`);
+    assert.equal(r.risk.genel, Math.round(r.risk.madde * 0.75 + r.risk.ictihat * 0.25));
+    assert.equal(r.parties.length, 2);
+    const owner = r.parties.find((p) => p.side === 'arsa_sahibi')!;
+    const builder = r.parties.find((p) => p.side === 'yuklenici')!;
+    assert.ok(owner.genel > builder.genel, `kötü sözleşme arsa sahibi için daha riskli: ${owner.genel} / ${builder.genel}`);
+    assert.equal(owner.genel, r.risk.genel);
+    // Taraf belli değilse içtihat puanı nötrdür ve genel risk madde riskine eşittir.
+    clm.setSide(db, a, c.id, 'genel');
+    const g = clm.contractReview(db, a, c.id);
+    assert.equal(g.risk.genel, g.risk.madde);
+    assert.ok(g.precedents.every((p) => p.direction === 'notr'));
+  });
+
   it('Word belgesini değişiklikleri izle işaretiyle üretir ve geri okur', () => {
     const buf = buildDocx(diffWords('Bedel 100 TL\nİkinci madde', 'Bedel 150 TL\nİkinci madde & ek'), 'Büro');
     const d = readDocx(buf);

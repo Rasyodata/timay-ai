@@ -16,6 +16,7 @@ import {
 import type { Go } from './App';
 import { TaskList } from './Agenda';
 import { CaseDocuments } from './CaseDocs';
+import { CasePowers } from './Powers';
 import { FilePick } from './Clm';
 import { documentText } from './docread';
 import { Card, DueLabel, Empty, ErrorText, Field, formatDate, formatTL, Icon, PageHeader, StatusBadge, Tabs, today, useAsync } from './ui';
@@ -209,7 +210,7 @@ export function CaseView({ id, user, go, initialTab }: { id: number; user: User;
           ...(user.can_finance ? ([['muhasebe', 'Masraf ve ücret']] as [CaseTab, string][]) : []),
         ]}
       />
-      {tab === 'genel' && <CaseGeneral data={data} setData={setData} areas={areas} user={user} />}
+      {tab === 'genel' && <CaseGeneral data={data} setData={setData} areas={areas} user={user} go={go} />}
       {tab === 'belgeler' && <CaseDocuments caseId={id} go={go} />}
       {tab === 'dilekceler' && <CasePetitions caseId={id} go={go} areas={areas} defaultArea={data.area} />}
       {tab === 'durusmalar' && <CaseHearings data={data} setData={setData} />}
@@ -225,11 +226,13 @@ function CaseGeneral({
   setData,
   areas,
   user,
+  go,
 }: {
   data: CaseDetail;
   setData: (d: CaseDetail) => void;
   areas: Area[];
   user: User;
+  go: Go;
 }) {
   const team = useAsync(() => api<User[]>('/users'), []).data ?? [];
   const [saved, setSaved] = useState(false);
@@ -319,24 +322,27 @@ function CaseGeneral({
           </div>
         </form>
       </Card>
-      <Card title="Dosya sorumlusu">
-        <p className="lead">{data.responsible_name || 'Atanmamış'}</p>
-        {user.role === 'avukat' && (
-          <Field label="Dosyayı devret">
-            <select value="" onChange={(e) => e.target.value && transfer(Number(e.target.value))}>
-              <option value="">Avukat seçin</option>
-              {team
-                .filter((u) => u.role === 'avukat' && u.id !== data.responsible_id)
-                .map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-            </select>
-          </Field>
-        )}
-        <p className="muted small">Devredilen avukat dosyanın sorumlusu olur ve dosya onun listesinde görünür.</p>
-      </Card>
+      <div className="stack">
+        <Card title="Dosya sorumlusu">
+          <p className="lead">{data.responsible_name || 'Atanmamış'}</p>
+          {user.role === 'avukat' && (
+            <Field label="Dosyayı devret">
+              <select value="" onChange={(e) => e.target.value && transfer(Number(e.target.value))}>
+                <option value="">Avukat seçin</option>
+                {team
+                  .filter((u) => u.role === 'avukat' && u.id !== data.responsible_id)
+                  .map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+          )}
+          <p className="muted small">Devredilen avukat dosyanın sorumlusu olur ve dosya onun listesinde görünür.</p>
+        </Card>
+        <CasePowers caseId={data.id} go={go} />
+      </div>
     </div>
   );
 }
