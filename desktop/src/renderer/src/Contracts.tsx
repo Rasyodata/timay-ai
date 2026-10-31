@@ -15,6 +15,7 @@ import { RefreshAllButton, RefreshBar, RowRefresh } from './Refresh';
 import { ExportButtons } from './Export';
 import type { Go } from './App';
 import { ArmorTab, FilePick, fileToText, readContractFile as readFile, LibraryPanel, PlaybookPanel, ScheduleCard, SigningTab, VersionsTab } from './Clm';
+import { ContractAiTab } from './Ai';
 import { Card, DueLabel, Empty, ErrorText, Field, formatDate, formatTL, Icon, PageHeader, Stat, Tabs, useAsync } from './ui';
 
 const RISK_LABEL = { yuksek: 'Yüksek risk', orta: 'Orta risk', dusuk: 'Düşük risk' } as const;
@@ -383,7 +384,7 @@ function AnalysisPanel({ analysis, onAddObligation }: { analysis: ContractAnalys
 
 export function ContractView({ id, user, go }: { id: number; user: User; go: Go }) {
   const { data, error, setData, reload } = useAsync(() => api<ContractDetail>(`/contracts/${id}`), [id]);
-  const [tab, setTab] = useState<'metin' | 'zirh' | 'taahhut' | 'versiyon' | 'imza' | 'bilgi' | 'surec'>('zirh');
+  const [tab, setTab] = useState<'yz' | 'metin' | 'zirh' | 'taahhut' | 'versiyon' | 'imza' | 'bilgi' | 'surec'>('zirh');
   const [body, setBody] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [ob, setOb] = useState({ party: '', text: '', dueDate: '', amount: '' });
@@ -471,6 +472,7 @@ export function ContractView({ id, user, go }: { id: number; user: User; go: Go 
         onChange={setTab}
         items={[
           ['zirh', 'İnceleme ve risk puanı'],
+          ['yz', 'Yapay zekâ ile oku'],
           ['taahhut', `Takvim ve taahhütler (${open.length})`],
           ['versiyon', 'Versiyonlar'],
           ['imza', data.locked_at ? 'İmza (kilitli)' : 'İmza'],
@@ -481,6 +483,7 @@ export function ContractView({ id, user, go }: { id: number; user: User; go: Go 
       />
       <ErrorText error={err} />
 
+      {tab === 'yz' && <ContractAiTab id={data.id} />}
       {tab === 'zirh' && <ArmorTab data={data} onChanged={reload} />}
       {tab === 'versiyon' && <VersionsTab id={data.id} />}
       {tab === 'imza' && <SigningTab data={data} onChanged={reload} />}
