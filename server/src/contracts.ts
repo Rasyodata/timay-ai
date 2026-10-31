@@ -377,7 +377,8 @@ function load(db: DB, user: User, id: number): ContractRow {
 export function listContracts(db: DB, user: User) {
   return db
     .prepare(
-      `SELECT c.id, c.title, c.kind, c.parties, c.start_date, c.end_date, c.value_kurus, c.status, c.created_at,
+      `SELECT c.id, c.title, c.kind, c.parties, c.start_date, c.end_date, c.value_kurus, c.status, c.created_at, c.group_id, c.relation, c.terminated_at,
+        (SELECT title FROM contract_groups g WHERE g.id = c.group_id) AS group_title,
         (SELECT COUNT(*) FROM contract_obligations o WHERE o.contract_id = c.id AND o.done = 0) AS open_obligations
        FROM contracts c WHERE c.office_id = ? ORDER BY c.id DESC`,
     )

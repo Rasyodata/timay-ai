@@ -174,9 +174,11 @@ export type IconName =
   | 'moon'
   | 'sun'
   | 'shield'
-  | 'chart';
+  | 'chart'
+  | 'refresh';
 
 const PATHS: Record<IconName, string> = {
+  refresh: 'M20 11a8 8 0 0 0-14.6-4.5M4 4v4h4M4 13a8 8 0 0 0 14.6 4.5M20 20v-4h-4',
   home: 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
   folder: 'M3 6a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z',
   calendar: 'M4 6h16v14H4zM4 10h16M8 3v4M16 3v4',

@@ -14,6 +14,7 @@ import {
   type User,
 } from './api';
 import { InsightsPanel } from './Insights';
+import { RefreshAllButton, RefreshBar, RowRefresh } from './Refresh';
 import type { Go } from './App';
 import { TaskList } from './Agenda';
 import { CaseDocuments } from './CaseDocs';
@@ -79,9 +80,12 @@ export function CasesView({ go }: { go: Go }) {
         title="Dava dosyaları"
         subtitle={`${data?.length ?? 0} dosya`}
         actions={
-          <button className="primary" onClick={() => setCreating(!creating)}>
-            <Icon name="plus" /> Yeni dosya
-          </button>
+          <>
+            <RefreshAllButton entities={['case']} go={go} />
+            <button className="primary" onClick={() => setCreating(!creating)}>
+              <Icon name="plus" /> Yeni dosya
+            </button>
+          </>
         }
       />
       <InsightsPanel module="cases" />
@@ -155,6 +159,7 @@ export function CasesView({ go }: { go: Go }) {
                 <th>Sorumlu</th>
                 <th>Sıradaki duruşma</th>
                 <th>Dilekçe</th>
+                <th className="num">Güncelle</th>
               </tr>
             </thead>
             <tbody>
@@ -172,6 +177,9 @@ export function CasesView({ go }: { go: Go }) {
                   <td>{c.responsible_name}</td>
                   <td>{c.next_hearing ? <DueLabel date={c.next_hearing} /> : <span className="muted">—</span>}</td>
                   <td>{c.petition_count}</td>
+                  <td className="num">
+                    <RowRefresh entity="case" id={c.id} />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -185,7 +193,7 @@ export function CasesView({ go }: { go: Go }) {
 type CaseTab = 'genel' | 'belgeler' | 'dilekceler' | 'durusmalar' | 'karsi' | 'gorevler' | 'muhasebe';
 
 export function CaseView({ id, user, go, initialTab }: { id: number; user: User; go: Go; initialTab?: string }) {
-  const { data, error, setData } = useAsync(() => api<CaseDetail>(`/cases/${id}`), [id]);
+  const { data, error, setData, reload } = useAsync(() => api<CaseDetail>(`/cases/${id}`), [id]);
   const areas = useAreas();
   const [tab, setTab] = useState<CaseTab>((initialTab as CaseTab) ?? 'genel');
 
@@ -201,6 +209,7 @@ export function CaseView({ id, user, go, initialTab }: { id: number; user: User;
           .join(' · ')}
         actions={<span className={`badge ${data.status === 'acik' ? 'open' : 'closed'}`}>{data.status === 'acik' ? 'Açık' : 'Kapalı'}</span>}
       />
+      <RefreshBar entity="case" id={data.id} onDone={reload} />
       <Tabs
         value={tab}
         onChange={setTab}
