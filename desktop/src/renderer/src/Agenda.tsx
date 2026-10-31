@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { api, type AgendaEvent, type CaseSummary, type Task, type User } from './api';
+import { api, type AgendaEvent, type CaseSummary, type Task, type TaskStatus, type User } from './api';
 import type { Go } from './App';
 import { Card, DueLabel, Empty, ErrorText, Field, formatDate, Icon, PageHeader, Tabs, today, useAsync } from './ui';
 
@@ -197,10 +197,24 @@ export function AgendaView({ go }: { go: Go }) {
 
 export function TasksView({ user, go }: { user: User; go: Go }) {
   const [filter, setFilter] = useState<'mine' | 'all'>('mine');
+  const [mode, setMode] = useState<'pano' | 'liste'>('pano');
   const tasks = useAsync(() => api<Task[]>(filter === 'mine' ? '/tasks?mine=1' : '/tasks'), [filter]);
   return (
     <div className="page">
-      <PageHeader title="Görevler" subtitle="Büro içinde iş verin, devredin ve takip edin" />
+      <PageHeader
+        title="Görevler"
+        subtitle="Büro içinde iş verin, devredin ve takip edin"
+        actions={
+          <div className="segmented compact">
+            <button className={mode === 'pano' ? 'active' : ''} onClick={() => setMode('pano')}>
+              <Icon name="kanban" /> Pano
+            </button>
+            <button className={mode === 'liste' ? 'active' : ''} onClick={() => setMode('liste')}>
+              <Icon name="check" /> Liste
+            </button>
+          </div>
+        }
+      />
       <Tabs
         value={filter}
         onChange={setFilter}
@@ -210,17 +224,131 @@ export function TasksView({ user, go }: { user: User; go: Go }) {
         ]}
       />
       <ErrorText error={tasks.error} />
-      <TaskList tasks={tasks.data ?? []} reload={tasks.reload} user={user} go={go} />
+      {mode === 'pano' ? (
+        <TaskBoard tasks={tasks.data ?? []} reload={tasks.reload} user={user} go={go} />
+      ) : (
+        <TaskList tasks={tasks.data ?? []} reload={tasks.reload} user={user} go={go} />
+      )}
     </div>
   );
 }
 
-export function TaskList({ tasks, reload, user, go, caseId }: { tasks: Task[]; reload: () => void; user: User; go: Go; caseId?: number }) {
+const COLUMNS: [TaskStatus, string][] = [
+  ['yapilacak', 'Yapılacak'],
+  ['devam', 'Devam ediyor'],
+  ['inceleme', 'İncelemede'],
+  ['tamam', 'Tamamlandı'],
+];
+
+/** Hammurabi tarzı görev panosu: kartlar sürüklenerek taşınır; "Tamamlandı"ya yalnızca kontrol eden taşıyabilir. */
+function TaskBoard({ tasks, reload, user, go }: { tasks: Task[]; reload: () => void; user: User; go: Go }) {
+  const [err, setErr] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<number | null>(null);
+  const [over, setOver] = useState<TaskStatus | null>(null);
+  const [adding, setAdding] = useState(false);
+
+  async function move(id: number, status: TaskStatus) {
+    const task = tasks.find((t) => t.id === id);
+    if (!task || task.status === status) return;
+    try {
+      await api(`/tasks/${id}`, { method: 'PUT', body: { status } });
+      setErr(null);
+      reload();
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  }
+
+  return (
+    <>
+      <div className="board-toolbar">
+        <ErrorText error={err} />
+        <button className="primary" onClick={() => setAdding(!adding)}>
+          <Icon name="plus" /> Yeni görev
+        </button>
+      </div>
+      {adding && (
+        <NewTaskForm
+          user={user}
+          onAdded={() => {
+            setAdding(false);
+            reload();
+          }}
+        />
+      )}
+      <div className="board">
+        {COLUMNS.map(([status, label]) => {
+          const items = tasks.filter((t) => (t.status ?? (t.done ? 'tamam' : 'yapilacak')) === status);
+          return (
+            <section
+              key={status}
+              className={`board-col ${status} ${over === status ? 'over' : ''}`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setOver(status);
+              }}
+              onDragLeave={() => setOver(null)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setOver(null);
+                if (dragging !== null) move(dragging, status);
+                setDragging(null);
+              }}
+            >
+              <header>
+                <span className={`dot ${status}`} />
+                {label}
+                <span className="count">{items.length}</span>
+              </header>
+              {items.length === 0 && <div className="board-empty">Kart yok</div>}
+              {items.map((t) => (
+                <article
+                  key={t.id}
+                  className="board-card"
+                  draggable
+                  onDragStart={() => setDragging(t.id)}
+                  onDragEnd={() => setDragging(null)}
+                >
+                  <strong>{t.title}</strong>
+                  {t.case_title && (
+                    <button className="link small" onClick={() => t.case_id && go({ name: 'case', id: t.case_id })}>
+                      {t.case_title}
+                    </button>
+                  )}
+                  <div className="board-meta">
+                    <span className="avatar sm" title={`Sorumlu: ${t.assignee_name}`}>
+                      {t.assignee_name.slice(0, 1).toLocaleUpperCase('tr')}
+                    </span>
+                    <span className="muted small">{t.assignee_name}</span>
+                    {t.due_date && <DueLabel date={t.due_date} />}
+                  </div>
+                  {t.reviewer_name && (
+                    <div className="muted small">
+                      <Icon name="shield" /> Kontrol: {t.reviewer_id === user.id ? 'ben' : t.reviewer_name}
+                    </div>
+                  )}
+                  <select className="compact" value={t.status} onChange={(e) => move(t.id, e.target.value as TaskStatus)} title="Sütunu değiştir">
+                    {COLUMNS.map(([k, l]) => (
+                      <option key={k} value={k} disabled={k === 'tamam' && Boolean(t.reviewer_id) && t.reviewer_id !== user.id && t.status !== 'tamam'}>
+                        {l}
+                      </option>
+                    ))}
+                  </select>
+                </article>
+              ))}
+            </section>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+function NewTaskForm({ user, caseId, onAdded }: { user: User; caseId?: number; onAdded: () => void }) {
   const users = useAsync(() => api<User[]>('/users'), []);
   const cases = useAsync(() => (caseId ? Promise.resolve([] as CaseSummary[]) : api<CaseSummary[]>('/cases')), [caseId]);
-  const [form, setForm] = useState({ title: '', assigneeId: String(user.id), dueDate: '', caseId: '' });
+  const [form, setForm] = useState({ title: '', assigneeId: String(user.id), reviewerId: '', dueDate: '', caseId: '' });
   const [err, setErr] = useState<string | null>(null);
-  const [showDone, setShowDone] = useState(false);
 
   async function add(e: FormEvent) {
     e.preventDefault();
@@ -229,17 +357,74 @@ export function TaskList({ tasks, reload, user, go, caseId }: { tasks: Task[]; r
         body: {
           title: form.title,
           assigneeId: Number(form.assigneeId),
+          reviewerId: form.reviewerId ? Number(form.reviewerId) : null,
           dueDate: form.dueDate || undefined,
           caseId: caseId ?? (form.caseId ? Number(form.caseId) : null),
         },
       });
       setForm({ ...form, title: '', dueDate: '' });
       setErr(null);
-      reload();
+      onAdded();
     } catch (e) {
       setErr((e as Error).message);
     }
   }
+
+  return (
+    <Card title="Yeni görev ver">
+      <form className="form-grid" onSubmit={add}>
+        <Field label="Görev" wide>
+          <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="ör. Bilirkişi raporuna itiraz hazırla" required />
+        </Field>
+        <Field label="Kime">
+          <select value={form.assigneeId} onChange={(e) => setForm({ ...form, assigneeId: e.target.value })}>
+            {users.data?.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.id === user.id ? `${u.name} (ben)` : u.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Kontrol eden">
+          <select value={form.reviewerId} onChange={(e) => setForm({ ...form, reviewerId: e.target.value })}>
+            <option value="">— Yok (sorumlu tamamlar) —</option>
+            {users.data?.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.id === user.id ? `${u.name} (ben)` : u.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Son tarih">
+          <input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
+        </Field>
+        {!caseId && (
+          <Field label="Dava dosyası">
+            <select value={form.caseId} onChange={(e) => setForm({ ...form, caseId: e.target.value })}>
+              <option value="">— Dosyaya bağlı değil —</option>
+              {cases.data?.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+        <div className="form-actions">
+          <ErrorText error={err} />
+          <button className="primary" type="submit">
+            <Icon name="plus" /> Görevi ver
+          </button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+export function TaskList({ tasks, reload, user, go, caseId }: { tasks: Task[]; reload: () => void; user: User; go: Go; caseId?: number }) {
+  const users = useAsync(() => api<User[]>('/users'), []);
+  const [err, setErr] = useState<string | null>(null);
+  const [showDone, setShowDone] = useState(false);
 
   async function update(id: number, body: { done?: boolean; assigneeId?: number }) {
     try {
@@ -267,6 +452,7 @@ export function TaskList({ tasks, reload, user, go, caseId }: { tasks: Task[]; r
           )
         }
       >
+        <ErrorText error={err} />
         {shown.length === 0 ? (
           <Empty icon="check">Açık görev yok.</Empty>
         ) : (
@@ -294,6 +480,8 @@ export function TaskList({ tasks, reload, user, go, caseId }: { tasks: Task[]; r
                         </button>
                       )}
                       {t.case_title && !caseId && ' · '}veren: {t.created_by_name}
+                      {t.reviewer_name && ` · kontrol: ${t.reviewer_name}`}
+                      {t.status === 'inceleme' && <span className="badge incelemede">İncelemede</span>}
                     </div>
                   </td>
                   <td>
@@ -317,43 +505,7 @@ export function TaskList({ tasks, reload, user, go, caseId }: { tasks: Task[]; r
           </table>
         )}
       </Card>
-      <Card title="Yeni görev ver">
-        <form className="form-grid" onSubmit={add}>
-          <Field label="Görev" wide>
-            <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="ör. Bilirkişi raporuna itiraz hazırla" required />
-          </Field>
-          <Field label="Kime">
-            <select value={form.assigneeId} onChange={(e) => setForm({ ...form, assigneeId: e.target.value })}>
-              {users.data?.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.id === user.id ? `${u.name} (ben)` : u.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Son tarih">
-            <input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
-          </Field>
-          {!caseId && (
-            <Field label="Dava dosyası" wide>
-              <select value={form.caseId} onChange={(e) => setForm({ ...form, caseId: e.target.value })}>
-                <option value="">— Dosyaya bağlı değil —</option>
-                {cases.data?.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.title}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          )}
-          <div className="form-actions">
-            <ErrorText error={err} />
-            <button className="primary" type="submit">
-              <Icon name="plus" /> Görevi ver
-            </button>
-          </div>
-        </form>
-      </Card>
+      <NewTaskForm user={user} caseId={caseId} onAdded={reload} />
     </div>
   );
 }

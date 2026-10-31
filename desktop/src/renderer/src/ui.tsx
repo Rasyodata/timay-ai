@@ -162,6 +162,16 @@ export type IconName =
   | 'trend'
   | 'briefcase'
   | 'tree'
+  | 'upload'
+  | 'download'
+  | 'pen'
+  | 'library'
+  | 'calc'
+  | 'kanban'
+  | 'gear'
+  | 'filter'
+  | 'moon'
+  | 'sun'
   | 'shield';
 
 const PATHS: Record<IconName, string> = {
@@ -186,6 +196,16 @@ const PATHS: Record<IconName, string> = {
   trend: 'M3 17l6-6 4 4 8-8M15 7h6v6',
   briefcase: 'M3 8h18v12H3zM8 8V5h8v3M3 13h18',
   shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4',
+  upload: 'M12 16V4M7 9l5-5 5 5M4 17v3h16v-3',
+  download: 'M12 4v12M7 11l5 5 5-5M4 17v3h16v-3',
+  pen: 'M4 20h4L19 9l-4-4L4 16zM13 7l4 4',
+  library: 'M4 4h4v16H4zM10 4h4v16h-4zM16 5l3.5-1 3 15.5-3.5 1z',
+  calc: 'M6 3h12v18H6zM9 7h6M9 12h.01M12 12h.01M15 12h.01M9 16h.01M12 16h.01M15 16h.01',
+  kanban: 'M4 4h4v16H4zM10 4h4v10h-4zM16 4h4v13h-4z',
+  filter: 'M3 5h18l-7 8v6l-4 2v-8z',
+  gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
+  moon: 'M20 14A8 8 0 1 1 10 4a6 6 0 0 0 10 10z',
+  sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4',
   tree: 'M12 3v6M12 9H6v5M12 9h6v5M6 14v3M18 14v3M4 17h4v4H4zM16 17h4v4h-4zM10 3h4',
 };
 

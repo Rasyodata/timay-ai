@@ -1,6 +1,6 @@
 // Sunucu adresi: kullanıcının girişte seçtiği adres, yoksa derleme sırasında verilen
 // VITE_TIMAY_SERVER_URL, o da yoksa geliştirmede yerel sunucu, kurulumda Render sunucusu.
-const DEFAULT_SERVER_URL =
+export const DEFAULT_SERVER_URL =
   import.meta.env.VITE_TIMAY_SERVER_URL ||
   (import.meta.env.DEV ? 'http://localhost:4000' : 'https://timay-sunucu.onrender.com');
 
@@ -75,13 +75,18 @@ export interface Template {
   body: string;
 }
 
+export type TaskStatus = 'yapilacak' | 'devam' | 'inceleme' | 'tamam';
+
 export interface Task {
   id: number;
   title: string;
   due_date: string;
   done: number;
+  status: TaskStatus;
   assignee_id: number;
   assignee_name: string;
+  reviewer_id: number | null;
+  reviewer_name: string | null;
   created_by_name: string;
   case_id: number | null;
   case_title: string | null;
@@ -143,8 +148,92 @@ export interface ContractDetail extends ContractSummary {
   submitted_by: number | null;
   submitted_by_name: string;
   reviews: { action: 'submit' | 'approve' | 'request_changes'; comment: string; created_at: string; user_name: string }[];
-  obligations: { id: number; party: string; text: string; due_date: string; amount_kurus: number; done: number }[];
+  obligations: { id: number; party: string; text: string; due_date: string; amount_kurus: number; done: number; direction: string; source: string }[];
   analysis: ContractAnalysis;
+  side: '' | 'arsa_sahibi' | 'yuklenici' | 'genel';
+  locked_at: string;
+  permit_date: string;
+  units: number;
+  armor: { score: number; band: 'dusuk' | 'orta' | 'yuksek'; critical: number } | null;
+}
+
+export type Verdict = 'lehte' | 'aleyhte' | 'eksik' | 'mevzuat';
+
+export interface Clause {
+  id: number;
+  kind: string;
+  topic: string;
+  title: string;
+  body: string;
+  approved_by_name?: string;
+}
+
+export interface ArmorFinding {
+  key: string;
+  topic: string;
+  verdict: Verdict;
+  severity: 'yuksek' | 'orta' | 'dusuk';
+  title: string;
+  note: string;
+  quote: string;
+}
+
+export interface ArmorReview {
+  score: number;
+  band: 'dusuk' | 'orta' | 'yuksek';
+  side: string;
+  findings: ArmorFinding[];
+  suggestions: Record<string, Clause[]>;
+}
+
+export interface Playbook {
+  courtCity: string;
+  allowArbitration: boolean;
+  maxPenalty: number;
+  requireConfidentiality: boolean;
+  requireForceMajeure: boolean;
+  requireLiabilityCap: boolean;
+  minOwnerShare: number;
+  maxDeliveryMonths: number;
+  minDelayPenalty: number;
+  requireGuarantee: boolean;
+  stagedTitleTransfer: boolean;
+  requireNotary: boolean;
+  requireInsurance: boolean;
+  forbidAssignment: boolean;
+  requireIskan: boolean;
+}
+
+export interface HiddenChange {
+  kind: 'eklendi' | 'silindi' | 'degisti';
+  removed: string;
+  added: string;
+  context: string;
+  paragraph: number;
+}
+
+export interface ContractVersion {
+  id: number;
+  version: number;
+  source: 'biz' | 'karsi';
+  file_name: string;
+  created_at: string;
+  created_by_name: string;
+  meta: { trackedChanges?: number; hidden?: HiddenChange[]; declared?: number; note?: string; authors?: string[]; comparedTo?: number | null };
+}
+
+export interface Signing {
+  locked_at: string;
+  signers: { id: number; name: string; role: string; position: number; signed_at: string }[];
+  next: number | null;
+}
+
+export interface ContractAlarm {
+  obligation: { id: number; text: string; party: string; due_date: string; amount_kurus: number };
+  days: number;
+  penalty: number;
+  basis: string;
+  rule: string;
 }
 
 export interface ContractTemplate {
@@ -453,6 +542,7 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
     });
   } catch {
+    window.dispatchEvent(new Event('timay-offline'));
     throw new ApiError('Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.');
   }
   const data = await res.json();

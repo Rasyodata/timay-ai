@@ -108,6 +108,16 @@ describe('Yargıtay çevrimiçi arama ve arşive aktarma', () => {
     assert.equal(calls.length, 0);
   });
 
+  it('tam ifade, hariç kelime ve yıl aralığıyla arama gövdesi kurar', () => {
+    const body = yargitay.searchBody({ q: 'kat karşılığı', exact: '1', exclude: 'kira, -tahliye', yearFrom: '2020', yearTo: 2024 });
+    assert.equal(body.phrase, '"kat karşılığı" -kira -tahliye');
+    assert.equal(body.kararTarihiStart, '2020-01-01T00:00:00.000Z');
+    assert.equal(body.kararTarihiEnd, '2024-12-31T23:59:59.999Z');
+    assert.equal(yargitay.searchBody({ q: 'kat karşılığı', yearFrom: '2020' }, false).kararTarihiStart, undefined);
+    const items = [{ date: '2019-05-01' }, { date: '2021-03-02' }, { date: '' }];
+    assert.deepEqual(yargitay.filterYears(items, { yearFrom: 2020 }).length, 2);
+  });
+
   it('HTML karar metnini düz metne çevirir', () => {
     assert.equal(yargitay.htmlToText('<p>a&nbsp;b</p><p>c&#252;</p>'), 'a b\ncü');
   });

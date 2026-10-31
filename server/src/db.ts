@@ -296,6 +296,44 @@ CREATE TABLE IF NOT EXISTS contract_reviews (
   user_id INTEGER NOT NULL REFERENCES users(id),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- Sözleşme zırhı: kural bankası, madde kütüphanesi, versiyonlar, imza sırası.
+CREATE TABLE IF NOT EXISTS playbooks (
+  office_id INTEGER PRIMARY KEY REFERENCES offices(id),
+  params TEXT NOT NULL DEFAULT '{}',
+  updated_by INTEGER REFERENCES users(id),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS clause_library (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  kind TEXT NOT NULL DEFAULT 'genel',
+  topic TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  approved INTEGER NOT NULL DEFAULT 1,
+  approved_by INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS contract_versions (
+  id INTEGER PRIMARY KEY,
+  contract_id INTEGER NOT NULL REFERENCES contracts(id),
+  version INTEGER NOT NULL,
+  source TEXT NOT NULL CHECK (source IN ('biz', 'karsi')),
+  body TEXT NOT NULL,
+  file_name TEXT NOT NULL DEFAULT '',
+  meta TEXT NOT NULL DEFAULT '{}',
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (contract_id, version)
+);
+CREATE TABLE IF NOT EXISTS contract_signers (
+  id INTEGER PRIMARY KEY,
+  contract_id INTEGER NOT NULL REFERENCES contracts(id),
+  position INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT '',
+  signed_at TEXT NOT NULL DEFAULT ''
+);
 -- Ajanda (dava defteri): avukatın kendi notları ve randevuları.
 CREATE TABLE IF NOT EXISTS agenda_items (
   id INTEGER PRIMARY KEY,
@@ -337,6 +375,20 @@ function migrate(db: DB) {
   if (!contractColumns.includes('review_status')) {
     db.exec("ALTER TABLE contracts ADD COLUMN review_status TEXT NOT NULL DEFAULT ''");
     db.exec('ALTER TABLE contracts ADD COLUMN submitted_by INTEGER REFERENCES users(id)');
+  }
+  if (!contractColumns.includes('side')) db.exec("ALTER TABLE contracts ADD COLUMN side TEXT NOT NULL DEFAULT ''");
+  if (!contractColumns.includes('locked_at')) db.exec("ALTER TABLE contracts ADD COLUMN locked_at TEXT NOT NULL DEFAULT ''");
+  if (!contractColumns.includes('permit_date')) db.exec("ALTER TABLE contracts ADD COLUMN permit_date TEXT NOT NULL DEFAULT ''");
+  if (!contractColumns.includes('units')) db.exec('ALTER TABLE contracts ADD COLUMN units INTEGER NOT NULL DEFAULT 1');
+  const obligationColumns = (db.prepare('PRAGMA table_info(contract_obligations)').all() as { name: string }[]).map((c) => c.name);
+  if (!obligationColumns.includes('direction')) db.exec("ALTER TABLE contract_obligations ADD COLUMN direction TEXT NOT NULL DEFAULT ''");
+  if (!obligationColumns.includes('source')) db.exec("ALTER TABLE contract_obligations ADD COLUMN source TEXT NOT NULL DEFAULT ''");
+  const taskColumns = (db.prepare('PRAGMA table_info(tasks)').all() as { name: string }[]).map((c) => c.name);
+  if (!taskColumns.includes('status')) {
+    // Görev panosu: yapilacak → devam → inceleme → tamam. Tamamlama kontrol edene aittir.
+    db.exec("ALTER TABLE tasks ADD COLUMN status TEXT NOT NULL DEFAULT 'yapilacak'");
+    db.exec('ALTER TABLE tasks ADD COLUMN reviewer_id INTEGER REFERENCES users(id)');
+    db.exec("UPDATE tasks SET status = 'tamam' WHERE done = 1");
   }
 }
 
