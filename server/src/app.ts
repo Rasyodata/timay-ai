@@ -5,6 +5,7 @@ import * as cases from './cases.ts';
 import * as consultancy from './consultancy.ts';
 import * as clm from './clm.ts';
 import * as contracts from './contracts.ts';
+import { insights } from './insights.ts';
 import { dashboard } from './dashboard.ts';
 import * as enforcement from './enforcement.ts';
 import * as finance from './finance.ts';
@@ -95,6 +96,7 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; f
   app.post('/api/petitions/:id/teyit/deep', authed((req, user) => petitions.deepCheck(db, user, id(req), checker)));
 
   app.get('/api/dashboard', authed((_req, user) => dashboard(db, user)));
+  app.get('/api/insights/:module', authed((req, user) => insights(db, user, String(req.params.module))));
   app.get('/api/areas', authed(() => listAreas()));
   app.get(
     '/api/templates/:tid',

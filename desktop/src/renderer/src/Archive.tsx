@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { api, type ArchiveDecision, type OnlineDecision, type User } from './api';
+import { InsightsPanel } from './Insights';
 import { Card, Empty, ErrorText, Field, formatDate, Icon, PageHeader, Stat, Tabs, useAsync } from './ui';
 import { decisionTitle, importYargitay, searchYargitay } from './yargitay';
 
@@ -23,6 +24,7 @@ export function DecisionsView({ user }: { user: User }) {
         title="Yargıtay kararları"
         subtitle="Büronuzun karar arşivi. Dilekçelerdeki karar atıfları Teyit ile bu arşive göre denetlenir."
       />
+      <InsightsPanel module="decisions" />
       <div className="stats">
         <Stat icon="scale" label="Arşivdeki karar" value={stats.data?.total ?? 0} />
         <Stat icon="book" label="Daire" value={stats.data?.chambers.length ?? 0} tone="violet" />

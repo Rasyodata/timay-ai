@@ -13,6 +13,7 @@ import {
   type Template,
   type User,
 } from './api';
+import { InsightsPanel } from './Insights';
 import type { Go } from './App';
 import { TaskList } from './Agenda';
 import { CaseDocuments } from './CaseDocs';
@@ -81,6 +82,7 @@ export function CasesView({ go }: { go: Go }) {
           </button>
         }
       />
+      <InsightsPanel module="cases" />
       {creating && (
         <Card title="Yeni dava dosyası">
           <form className="form-grid" onSubmit={create}>

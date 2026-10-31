@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { api, ENFORCEMENT_KIND_LABEL, ENFORCEMENT_STATUS_LABEL, type CaseSummary, type EnforcementFile } from './api';
+import { InsightsPanel } from './Insights';
 import type { Go } from './App';
 import { Card, Empty, ErrorText, Field, formatDate, formatTL, Icon, PageHeader, Stat, Tabs, today, useAsync } from './ui';
 
@@ -42,6 +43,7 @@ export function EnforcementView({ go }: { go: Go }) {
           </button>
         }
       />
+      <InsightsPanel module="enforcement" />
       <ErrorText error={list.error} />
       <div className="stats">
         <Stat icon="gavel" label="Açık takip" value={open.length} tone="red" />

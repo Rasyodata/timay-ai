@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { api, type AgendaEvent, type CaseSummary, type Task, type TaskStatus, type User } from './api';
+import { InsightsPanel } from './Insights';
 import type { Go } from './App';
 import { Card, DueLabel, Empty, ErrorText, Field, formatDate, Icon, PageHeader, Tabs, today, useAsync } from './ui';
 
@@ -215,6 +216,7 @@ export function TasksView({ user, go }: { user: User; go: Go }) {
           </div>
         }
       />
+      <InsightsPanel module="tasks" reloadKey={tasks.data} />
       <Tabs
         value={filter}
         onChange={setFilter}

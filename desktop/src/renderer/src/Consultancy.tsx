@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { api, CONSULT_KIND_LABEL, type ConsultancyClient, type ConsultancyDetail, type User } from './api';
+import { InsightsPanel } from './Insights';
 import type { Go } from './App';
 import { Card, Empty, ErrorText, Field, formatDate, formatTL, Icon, PageHeader, Stat, Tabs, today, useAsync } from './ui';
 
@@ -35,6 +36,7 @@ export function ConsultancyView({ go }: { go: Go }) {
           </button>
         }
       />
+      <InsightsPanel module="consultancy" />
       <ErrorText error={list.error} />
       <div className="stats">
         <Stat icon="briefcase" label="Aktif danışmanlık" value={active.length} />
