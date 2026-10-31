@@ -22,6 +22,7 @@ import { dashboard } from './dashboard.ts';
 import * as enforcement from './enforcement.ts';
 import * as icra from './icra.ts';
 import * as mediation from './mediation.ts';
+import * as clients from './clients.ts';
 import * as finance from './finance.ts';
 import * as tasks from './tasks.ts';
 import { getTemplate, listAreas } from './templates.ts';
@@ -155,10 +156,10 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; f
   app.delete('/api/law-changes/:id', authed((req, user) => mevzuat.deleteChange(db, user, id(req))));
   app.post(
     '/api/export',
-    authed((req) => {
+    authed((req, user) => {
       const format = String(req.body?.format ?? 'udf');
-      const body = String(req.body?.body ?? '');
-      if (!body.trim()) throw new ApiError(400, 'Dışa aktarılacak metin boş.');
+      const body = clients.withLetterhead(db, user, String(req.body?.body ?? ''), req.body?.letterhead !== false);
+      if (!String(req.body?.body ?? '').trim()) throw new ApiError(400, 'Dışa aktarılacak metin boş.');
       const name = (String(req.body?.title ?? '').trim() || 'Belge').replace(/[\\/:*?"<>|]/g, '').slice(0, 120);
       if (format === 'docx') return { fileName: `${name}.docx`, base64: plainDocx(body).toString('base64') };
       if (format === 'udf') return { fileName: `${name}.udf`, base64: buildUdf(body).toString('base64') };
@@ -260,6 +261,14 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; f
   app.get('/api/enforcement/:id/queries', authed((req, user) => icra.listQueries(db, user, id(req))));
   app.post('/api/enforcement/:id/queries', authed((req, user) => icra.addQuery(db, user, id(req), req.body)));
   app.delete('/api/enforcement-queries/:id', authed((req, user) => icra.deleteQuery(db, user, id(req))));
+  // Müvekkiller ve büro anteti
+  app.get('/api/clients', authed((req, user) => clients.listClients(db, user, String(req.query.q ?? ''))));
+  app.post('/api/clients', authed((req, user) => clients.createClient(db, user, req.body)));
+  app.get('/api/clients/:id', authed((req, user) => clients.getClient(db, user, id(req))));
+  app.put('/api/clients/:id', authed((req, user) => clients.updateClient(db, user, id(req), req.body)));
+  app.delete('/api/clients/:id', authed((req, user) => clients.deleteClient(db, user, id(req))));
+  app.get('/api/office/letterhead', authed((_req, user) => clients.getLetterhead(db, user)));
+  app.put('/api/office/letterhead', authed((req, user) => clients.saveLetterhead(db, user, req.body)));
   // Arabuluculuk
   app.get('/api/mediation/meta', authed(() => ({ kinds: mediation.KINDS, statuses: mediation.STATUSES, docs: mediation.DOCS, year: mediation.TARIFF_YEAR })));
   app.post('/api/mediation/fee', authed((req) => mediation.feeQuote(req.body)));
