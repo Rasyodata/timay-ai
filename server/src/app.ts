@@ -13,6 +13,7 @@ import * as mevzuat from './mevzuat.ts';
 import { buildUdf, plainDocx } from './docx.ts';
 import { extractText, unpack } from './files.ts';
 import * as notes from './notes.ts';
+import * as backup from './backup.ts';
 import { searchAll } from './search.ts';
 import { caseSummary } from './casesummary.ts';
 import { DOC_KINDS, reviewForUser } from './disciplines.ts';
@@ -37,7 +38,7 @@ import * as yargitay from './yargitay.ts';
 
 type Handler = (req: Request, user: auth.User) => unknown;
 
-export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; fetch?: yargitay.Fetch } = {}) {
+export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; fetch?: yargitay.Fetch; backupDir?: string | null } = {}) {
   const checker = options.deepChecker ?? null;
   const fetchImpl = options.fetch ?? (fetch as unknown as yargitay.Fetch);
   const app = express();
@@ -201,6 +202,11 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; f
       return r;
     }),
   );
+  // Yedekleme
+  app.post('/api/backup', authed((_req, user) => backup.createBackup(db, user)));
+  app.post('/api/backup/inspect', authed((req, user) => backup.inspectBackup(db, user, req.body)));
+  app.post('/api/backup/restore', authed((req, user) => backup.restoreBackup(db, user, req.body)));
+  app.get('/api/backup/server', authed((_req, user) => backup.listServerBackups(user, options.backupDir ?? null)));
   app.post(
     '/api/documents/unpack',
     authed((req) => {
