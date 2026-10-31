@@ -6,6 +6,7 @@ import { CasesView, CaseView } from './Cases';
 import { ConsultancyClientView, ConsultancyView } from './Consultancy';
 import { ContractsView, ContractView } from './Contracts';
 import { NotesView } from './Notes';
+import { BackupView, useDailyBackup } from './Backup';
 import { SearchView } from './Search';
 import { NotificationBell } from './Notifications';
 import { ContractGroupView } from './ContractGroups';
@@ -49,6 +50,7 @@ export type View =
   | { name: 'decisions' }
   | { name: 'team' }
   | { name: 'settings' }
+  | { name: 'backup' }
   | { name: 'calculators' }
   | { name: 'powers'; id?: number };
 
@@ -238,6 +240,7 @@ const NAV: { section: string; items: { name: View['name']; label: string; icon: 
     items: [
       { name: 'finance', label: 'Muhasebe', icon: 'wallet' },
       { name: 'team', label: 'Ekip ve yetkiler', icon: 'users' },
+      { name: 'backup', label: 'Yedekleme', icon: 'shield' },
     ],
   },
 ];
@@ -258,6 +261,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [view, setView] = useState<View>({ name: 'dashboard' });
   const [gate, setGate] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  useDailyBackup(user);
   const go: Go = (v) => {
     setView(v);
     document.querySelector('main.content')?.scrollTo(0, 0);
@@ -353,6 +357,9 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
     case 'calculators':
       content = <CalculatorsView />;
       break;
+    case 'backup':
+      content = <BackupView user={user} />;
+      break;
     case 'settings':
       content = <SettingsView onClose={() => go({ name: 'dashboard' })} onReconnected={() => setReloadKey((k) => k + 1)} />;
       break;
@@ -368,7 +375,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
         {NAV.map((group) => (
           <div key={group.section} className="nav-group">
             <div className="nav-section">{group.section}</div>
-            {group.items.filter((item) => item.name !== 'finance' || user.can_finance).map((item) => (
+            {group.items.filter((item) => (item.name !== 'finance' || user.can_finance) && (item.name !== 'backup' || user.is_admin)).map((item) => (
               <button
                 key={item.name}
                 className={`nav-item ${active === item.name ? 'active' : ''}`}

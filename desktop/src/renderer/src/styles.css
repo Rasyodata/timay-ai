@@ -4810,3 +4810,33 @@ mark {
 .sum-layout .card-head h2 {
   flex: 1 0 100%;
 }
+
+/* Yedekleme */
+.bk-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+.bk-restore {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+label.warn-line {
+  flex-direction: row;
+  color: var(--bad);
+}
+button.danger {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: #fff;
+}
+button.danger:disabled {
+  opacity: 0.5;
+}
