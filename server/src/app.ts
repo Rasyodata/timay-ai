@@ -11,6 +11,10 @@ import * as safahat from './safahat.ts';
 import * as notifications from './notifications.ts';
 import * as mevzuat from './mevzuat.ts';
 import { buildUdf, plainDocx } from './docx.ts';
+import { extractText, unpack } from './files.ts';
+import * as notes from './notes.ts';
+import { searchAll } from './search.ts';
+import { caseSummary } from './casesummary.ts';
 import { DOC_KINDS, reviewForUser } from './disciplines.ts';
 import { insights } from './insights.ts';
 import { dashboard } from './dashboard.ts';
@@ -20,7 +24,6 @@ import * as tasks from './tasks.ts';
 import { getTemplate, listAreas } from './templates.ts';
 import { checkCitations } from './citations.ts';
 import * as deadlines from './deadlines.ts';
-import { readDocx, readUdf } from './docx.ts';
 import type { DB } from './db.ts';
 import { archiveStats, getDecision, searchArchive, searchDecisions, upsertDecision } from './decisions.ts';
 import { ApiError } from './errors.ts';
@@ -38,7 +41,7 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; f
   const checker = options.deepChecker ?? null;
   const fetchImpl = options.fetch ?? (fetch as unknown as yargitay.Fetch);
   const app = express();
-  app.use(express.json({ limit: '25mb' }));
+  app.use(express.json({ limit: '80mb' }));
   // Masaüstü uygulaması file:// kökeninden istek atar; kimlik doğrulama çerezle değil
   // Bearer token ile yapıldığı için tüm kökenlere izin vermek güvenlidir.
   app.use((req, res, next) => {
@@ -137,6 +140,12 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; f
   app.post('/api/contracts/:id/terminate', authed((req, user) => groups.terminateContract(db, user, id(req), req.body ?? {})));
   app.post('/api/contracts/:id/renew', authed((req, user) => groups.renewContract(db, user, id(req), req.body ?? {})));
   app.post('/api/contracts/:id/addendum', authed((req, user) => groups.addAddendum(db, user, id(req), req.body ?? {})));
+  app.get('/api/notes', authed((req, user) => notes.listNotes(db, user, req.query as Record<string, string>)));
+  app.post('/api/notes', authed((req, user) => notes.createNote(db, user, req.body ?? {})));
+  app.put('/api/notes/:id', authed((req, user) => notes.updateNote(db, user, id(req), req.body ?? {})));
+  app.delete('/api/notes/:id', authed((req, user) => notes.deleteNote(db, user, id(req))));
+  app.get('/api/search', authed((req, user) => searchAll(db, user, req.query as Record<string, string>)));
+  app.get('/api/cases/:id/summary', authed((req, user) => caseSummary(db, user, id(req))));
   app.get('/api/laws', authed(() => mevzuat.lawOptions()));
   app.get('/api/law-changes', authed((_req, user) => mevzuat.listChanges(db, user)));
   app.post('/api/law-changes', authed((req, user) => mevzuat.createChange(db, user, req.body ?? {})));
@@ -186,9 +195,18 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; f
     '/api/documents/extract',
     authed((req) => {
       const buf = Buffer.from(String(req.body?.fileBase64 ?? ''), 'base64');
-      if (/\.udf$/i.test(String(req.body?.fileName ?? ''))) return { text: readUdf(buf), trackedChanges: 0 };
-      const doc = readDocx(buf);
-      return { text: doc.accepted, trackedChanges: doc.trackedChanges };
+      const name = String(req.body?.fileName ?? '');
+      const r = extractText(/\.[a-z0-9]+$/i.test(name) ? name : `${name}.docx`, buf);
+      if (!r) throw new ApiError(400, 'Bu dosya türü sunucuda okunamıyor.');
+      return r;
+    }),
+  );
+  app.post(
+    '/api/documents/unpack',
+    authed((req) => {
+      const buf = Buffer.from(String(req.body?.fileBase64 ?? ''), 'base64');
+      if (buf.length > 60 * 1024 * 1024) throw new ApiError(413, 'Paket 60 MB’tan büyük olamaz.');
+      return unpack(String(req.body?.fileName ?? 'paket.zip'), buf);
     }),
   );
   app.get('/api/contracts/:id/review', authed((req, user) => clm.contractReview(db, user, id(req))));

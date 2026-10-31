@@ -16,6 +16,8 @@ import {
 import { InsightsPanel } from './Insights';
 import { RefreshAllButton, RefreshBar, RowRefresh } from './Refresh';
 import { SafahatStrip, SafahatTab } from './Safahat';
+import { CaseNotes } from './Notes';
+import { CaseSummaryTab } from './CaseSummary';
 import type { Go } from './App';
 import { TaskList } from './Agenda';
 import { CaseDocuments } from './CaseDocs';
@@ -191,12 +193,12 @@ export function CasesView({ go }: { go: Go }) {
   );
 }
 
-type CaseTab = 'safahat' | 'genel' | 'belgeler' | 'dilekceler' | 'durusmalar' | 'karsi' | 'gorevler' | 'muhasebe';
+type CaseTab = 'ozet' | 'notlar' | 'safahat' | 'genel' | 'belgeler' | 'dilekceler' | 'durusmalar' | 'karsi' | 'gorevler' | 'muhasebe';
 
 export function CaseView({ id, user, go, initialTab }: { id: number; user: User; go: Go; initialTab?: string }) {
   const { data, error, setData, reload } = useAsync(() => api<CaseDetail>(`/cases/${id}`), [id]);
   const areas = useAreas();
-  const [tab, setTab] = useState<CaseTab>((initialTab as CaseTab) ?? 'genel');
+  const [tab, setTab] = useState<CaseTab>((initialTab as CaseTab) ?? 'ozet');
   const [safKey, setSafKey] = useState(0);
 
   if (!data) return <ErrorText error={error} />;
@@ -217,8 +219,10 @@ export function CaseView({ id, user, go, initialTab }: { id: number; user: User;
         value={tab}
         onChange={setTab}
         items={[
+          ['ozet', 'Özet ve strateji'],
           ['genel', 'Genel bilgiler'],
           ['safahat', 'Safahat'],
+          ['notlar', 'Notlar'],
           ['belgeler', 'Belgeler'],
           ['dilekceler', 'Dilekçeler'],
           ['durusmalar', `Duruşmalar (${data.hearings.length})`],
@@ -228,6 +232,8 @@ export function CaseView({ id, user, go, initialTab }: { id: number; user: User;
         ]}
       />
       {tab === 'genel' && <CaseGeneral data={data} setData={setData} areas={areas} user={user} go={go} />}
+      {tab === 'ozet' && <CaseSummaryTab caseId={id} reloadKey={safKey} />}
+      {tab === 'notlar' && <CaseNotes caseId={id} go={go} />}
       {tab === 'safahat' && <SafahatTab caseId={id} onChanged={() => setSafKey((k) => k + 1)} />}
       {tab === 'belgeler' && <CaseDocuments caseId={id} go={go} />}
       {tab === 'dilekceler' && <CasePetitions caseId={id} go={go} areas={areas} defaultArea={data.area} />}

@@ -53,7 +53,7 @@ function sortIssues(list: Issue[]) {
 
 // ---------------------------------------------------------------- dava dosyası
 
-function analyzeCase(db: DB, user: User, id: number): Analysis {
+export function analyzeCase(db: DB, user: User, id: number): Analysis {
   const c = getCase(db, user, id);
   const issues: Issue[] = [];
   const add = (key: string, level: Level, text: string) => issues.push({ key, level, text });

@@ -5,7 +5,7 @@ import { api } from './api';
  * Taranmış PDF, TIF ve resimlerdeki yazı bu bilgisayarda Türkçe OCR ile okunur.
  */
 
-export const DOC_ACCEPT = '.udf,.pdf,.docx,.tif,.tiff,.jpg,.jpeg,.png,.bmp,.gif,.webp,.txt';
+export const DOC_ACCEPT = '.udf,.pdf,.docx,.xlsx,.html,.htm,.xml,.tif,.tiff,.jpg,.jpeg,.png,.bmp,.gif,.webp,.txt';
 export const DOC_FORMATS = 'UYAP (.udf), PDF, Word, TIF, JPG, PNG, BMP';
 
 const IMAGE = /\.(jpe?g|png|bmp|gif|webp)$/i;
@@ -174,6 +174,11 @@ export async function readDocument(file: File, onProgress?: Progress, options: {
   const buf = await file.arrayBuffer();
   if (name.endsWith('.docx')) {
     if (options.keepDocx) return { fileName: file.name, fileBase64: toBase64(buf) };
+    const r = await api<{ text: string }>('/documents/extract', { body: { fileName: file.name, fileBase64: toBase64(buf) } });
+    return { fileName: file.name, text: r.text };
+  }
+  if (/\.(xlsx|html?|xml)$/.test(name)) {
+    progress?.('Belge okunuyor…');
     const r = await api<{ text: string }>('/documents/extract', { body: { fileName: file.name, fileBase64: toBase64(buf) } });
     return { fileName: file.name, text: r.text };
   }

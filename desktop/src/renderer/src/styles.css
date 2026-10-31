@@ -4516,3 +4516,297 @@ label.sf-deadline,
   font-style: italic;
   color: var(--text-2);
 }
+
+/* ---------------------------------------------------------------- belge işleme kuyruğu */
+.bq {
+  margin: 0 16px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg, rgba(127, 127, 127, 0.04));
+}
+.bq-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bq-head .link {
+  margin-left: auto;
+}
+.bq-bar {
+  height: 4px;
+  margin: 8px 0;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+.bq-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s;
+}
+.bq-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow: auto;
+  font-size: 12.5px;
+}
+.bq-list li {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 4px 0;
+  cursor: default;
+}
+.bq-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bq-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.bq-status .disc-spinner {
+  width: 12px;
+  height: 12px;
+}
+.bq-status.s-tamam {
+  color: var(--ok);
+}
+.bq-status.s-metinsiz {
+  color: var(--warn);
+}
+.bq-status.s-hata {
+  color: var(--bad);
+}
+
+/* ---------------------------------------------------------------- akıllı notlar */
+.note-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.note-composer .row {
+  justify-content: space-between;
+}
+.notes {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.notes.inset {
+  padding: 12px 16px 16px;
+  margin: 0;
+}
+.note {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.note.pinned {
+  border-color: var(--warn);
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+.note-body {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.note textarea {
+  width: 100%;
+}
+.note-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  align-items: center;
+}
+.tag.t-law {
+  background: rgba(98, 80, 214, 0.12);
+  color: #6250d6;
+}
+.tag.t-money {
+  background: rgba(27, 175, 122, 0.12);
+  color: #148a60;
+}
+.note-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 1px 8px;
+  border-radius: 6px;
+  border: 1px dashed var(--border-strong);
+}
+.note-date svg {
+  width: 13px;
+  height: 13px;
+}
+.note-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+.note-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+button.tag {
+  border: none;
+  cursor: pointer;
+}
+button.tag.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ---------------------------------------------------------------- dava özeti */
+.sum-grid {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 8px 14px;
+  margin: 0;
+  font-size: 13.5px;
+}
+.sum-grid dt {
+  color: var(--text-2);
+}
+.sum-grid dd {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+}
+.sum-pet {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sum-notes {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+.strategy {
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13.5px;
+}
+.strategy li {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+.st-tag {
+  flex: none;
+  min-width: 58px;
+  text-align: center;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+}
+.st-tag.st-acil {
+  background: var(--bad);
+}
+.st-tag.st-onemli {
+  background: var(--warn);
+}
+.st-tag.st-plan {
+  background: var(--accent);
+}
+.sum-report {
+  min-height: 460px;
+  font-size: 12.5px;
+}
+
+/* ---------------------------------------------------------------- arama */
+.search.big-search {
+  max-width: none;
+  height: 48px;
+  margin-bottom: 14px;
+  font-size: 15px;
+}
+.search-hits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.search-hits li {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+.search-hits li:first-child {
+  border-top: none;
+}
+.search-hits li:hover {
+  background: var(--hover, rgba(127, 127, 127, 0.06));
+}
+.sh-icon svg {
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+  margin-top: 2px;
+}
+.sh-snippet {
+  font-size: 13px;
+  color: var(--text-2);
+}
+mark {
+  background: rgba(237, 161, 0, 0.3);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+.sum-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.sum-layout .card-head {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sum-layout .card-head .actions,
+.sum-layout .card-actions {
+  flex-wrap: wrap;
+}
+@media (max-width: 1100px) {
+  .sum-layout {
+    grid-template-columns: 1fr;
+  }
+}
+.sum-layout .card-head {
+  justify-content: flex-start;
+}
+.sum-layout .card-head h2 {
+  flex: 1 0 100%;
+}

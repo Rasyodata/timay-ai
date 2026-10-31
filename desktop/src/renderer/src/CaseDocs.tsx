@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, type CaseDocument, type ContractDetail, type OpposingDetail } from './api';
 import type { Go } from './App';
 import { FilePick } from './Clm';
-import { DOC_FORMATS, mimeOf, readDocument, toBase64 } from './docread';
+import { DOC_ACCEPT, DOC_FORMATS, mimeOf, readDocument, toBase64 } from './docread';
 import { Card, Empty, ErrorText, Field, formatDate, Icon, useAsync } from './ui';
 
 const KINDS: [string, string][] = [
@@ -41,74 +41,146 @@ function blobOf(doc: { fileBase64: string; mime_type: string }) {
   return new Blob([bytes], { type: doc.mime_type });
 }
 
+type JobStatus = 'sirada' | 'aciliyor' | 'okunuyor' | 'kaydediliyor' | 'tamam' | 'metinsiz' | 'hata';
+interface Job {
+  id: number;
+  name: string;
+  status: JobStatus;
+  note: string;
+  docId?: number;
+}
+const JOB_LABEL: Record<JobStatus, string> = {
+  sirada: 'Sırada',
+  aciliyor: 'Paket açılıyor',
+  okunuyor: 'Okunuyor',
+  kaydediliyor: 'Kaydediliyor',
+  tamam: 'İşlendi',
+  metinsiz: 'Yazısız eklendi',
+  hata: 'Hata',
+};
+let jobSeq = 0;
+const CASE_ACCEPT = `${DOC_ACCEPT},.zip,.eyp`;
+
 /** Dava dosyasının belgeleri: UYAP, PDF, Word, TIF ve resimler; yazısı okunur ve aranabilir saklanır. */
 export function CaseDocuments({ caseId, go }: { caseId: number; go: Go }) {
   const docs = useAsync(() => api<CaseDocument[]>(`/cases/${caseId}/documents`), [caseId]);
-  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [notes, setNotes] = useState<string[]>([]);
   const [openId, setOpenId] = useState<number | null>(null);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const files = useRef(new Map<number, File>());
+  const [running, setRunning] = useState(false);
 
-  async function upload(file: File) {
-    setBusy(true);
-    setErr(null);
-    try {
-      if (file.size > 15 * 1024 * 1024) throw new Error(`${file.name}: dosya 15 MB’tan büyük olamaz.`);
-      let text = '';
-      let ocr = false;
-      try {
-        const r = await readDocument(file);
-        text = r.text ?? '';
-        ocr = Boolean(r.ocr);
-      } catch (e) {
-        // Yazısı okunamasa da asıl dosya saklanır.
-        setNotes((n) => [...n, `${file.name}: yazısı okunamadı (${(e as Error).message}). Dosya yine de eklendi.`]);
-      }
-      const saved = await api<CaseDocument>(`/cases/${caseId}/documents`, {
-        body: {
-          fileName: file.name,
-          mimeType: file.type || mimeOf(file.name),
-          fileBase64: toBase64(await file.arrayBuffer()),
-          text,
-          ocr,
-          kind: guessKind(file.name),
-        },
-      });
-      docs.reload();
-      setOpenId(saved.id);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
+  const patch = (id: number, p: Partial<Job>) => setJobs((js) => js.map((j) => (j.id === id ? { ...j, ...p } : j)));
+
+  function enqueue(list: File[]) {
+    const add: Job[] = [];
+    for (const f of list) {
+      const id = ++jobSeq;
+      add.push({ id, name: f.name, status: 'sirada', note: '' });
+      files.current.set(id, f);
     }
+    setJobs((js) => [...js, ...add]);
   }
 
-  // Birden çok dosya seçildiğinde sırayla okunur.
-  const [queue, setQueue] = useState<File[]>([]);
+  async function process(job: Job, file: File) {
+    // ZIP ve UYAP EYP paketleri açılır, içindeki belgeler sıraya eklenir.
+    if (/\.(zip|eyp)$/i.test(file.name)) {
+      patch(job.id, { status: 'aciliyor' });
+      const r = await api<{ files: { name: string; path: string; base64: string }[]; skipped: string[] }>('/documents/unpack', {
+        body: { fileName: file.name, fileBase64: toBase64(await file.arrayBuffer()) },
+      });
+      enqueue(
+        r.files.map((f) => {
+          const bin = atob(f.base64);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          return new File([bytes], f.name, { type: mimeOf(f.name) });
+        }),
+      );
+      patch(job.id, { status: 'tamam', note: `${r.files.length} belge çıkarıldı${r.skipped.length ? `, ${r.skipped.length} dosya atlandı` : ''}` });
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) throw new Error('Dosya 15 MB’tan büyük olamaz.');
+    patch(job.id, { status: 'okunuyor' });
+    let text = '';
+    let ocr = false;
+    let note = '';
+    try {
+      const r = await readDocument(file, (m) => patch(job.id, { note: m }));
+      text = r.text ?? '';
+      ocr = Boolean(r.ocr);
+    } catch (e) {
+      // Yazısı okunamasa da asıl dosya saklanır.
+      note = `yazısı okunamadı: ${(e as Error).message}`;
+    }
+    patch(job.id, { status: 'kaydediliyor', note: '' });
+    const saved = await api<CaseDocument>(`/cases/${caseId}/documents`, {
+      body: { fileName: file.name, mimeType: file.type || mimeOf(file.name), fileBase64: toBase64(await file.arrayBuffer()), text, ocr, kind: guessKind(file.name) },
+    });
+    patch(job.id, { status: text.trim() ? 'tamam' : 'metinsiz', note: note || (ocr ? 'resimden okundu' : text.trim() ? `${text.length.toLocaleString('tr-TR')} karakter` : 'yazısı yok'), docId: saved.id });
+    docs.reload();
+  }
+
+  // Belge işleme kuyruğu: dosyalar sırayla açılır, okunur (gerekirse OCR) ve kaydedilir.
   useEffect(() => {
-    if (busy || queue.length === 0) return;
-    const [next, ...rest] = queue;
-    setQueue(rest);
-    upload(next);
-  }, [busy, queue]);
+    if (running) return;
+    const next = jobs.find((j) => j.status === 'sirada');
+    if (!next) return;
+    const file = files.current.get(next.id);
+    if (!file) return;
+    setRunning(true);
+    process(next, file)
+      .catch((e) => patch(next.id, { status: 'hata', note: (e as Error).message }))
+      .finally(() => {
+        files.current.delete(next.id);
+        setRunning(false);
+      });
+  }, [jobs, running]);
+
+  const active = jobs.filter((j) => !['tamam', 'hata', 'metinsiz'].includes(j.status)).length;
+  const finished = jobs.length - active;
 
   return (
     <div className="grid-main-side wide-side">
       <Card
         title={`Belgeler (${docs.data?.length ?? 0})`}
         className="flush"
-        actions={<FilePick label="Belge ekle" primary multiple busy={busy} onFile={(f) => setQueue((q) => [...q, f])} />}
+        actions={<FilePick label="Belge ekle" primary multiple accept={CASE_ACCEPT} busy={running && active > 0} onFile={(f) => enqueue([f])} />}
       >
         <p className="muted small inset-note top">
-          {DOC_FORMATS} eklenebilir. Fotoğraf, TIF ve taranmış PDF’lerdeki yazı bilgisayarınızda Türkçe olarak okunur.
-          {queue.length > 0 && ` Sırada ${queue.length} dosya var.`}
+          {DOC_FORMATS}, Excel, HTML ve ZIP / UYAP EYP paketleri eklenebilir; paketler açılır, içindeki belgeler tek tek okunur. Fotoğraf, TIF ve taranmış PDF’lerdeki yazı bilgisayarınızda Türkçe olarak okunur.
         </p>
         <ErrorText error={err ?? docs.error} />
-        {notes.map((n) => (
-          <p key={n} className="warning small inset-note">
-            {n}
-          </p>
-        ))}
+        {jobs.length > 0 && (
+          <div className="bq">
+            <div className="bq-head">
+              <strong>Belge işleme</strong>
+              <span className="muted small">
+                {finished}/{jobs.length} tamamlandı{active ? ` · ${active} işleniyor / sırada` : ''}
+              </span>
+              {!active && (
+                <button className="link small" onClick={() => setJobs([])}>
+                  Listeyi temizle
+                </button>
+              )}
+            </div>
+            <div className="bq-bar">
+              <span style={{ width: `${(finished / jobs.length) * 100}%` }} />
+            </div>
+            <ul className="bq-list">
+              {jobs.map((j) => (
+                <li key={j.id} className={`s-${j.status}`} onClick={() => j.docId && setOpenId(j.docId)}>
+                  <span className={`bq-status s-${j.status}`}>
+                    {['okunuyor', 'aciliyor', 'kaydediliyor'].includes(j.status) && <span className="disc-spinner" />}
+                    {JOB_LABEL[j.status]}
+                  </span>
+                  <span className="bq-name">{j.name}</span>
+                  <span className="muted small">{j.note}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {docs.data?.length === 0 ? (
           <Empty icon="folder">Henüz belge yok. UYAP’tan indirdiğiniz dosyaları, karşı tarafın dilekçelerini ya da müvekkilin gönderdiği fotoğrafları ekleyin.</Empty>
         ) : (
