@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, type CaseSummary, type PowerOfAttorney } from './api';
+import { InsightsPanel } from './Insights';
 import type { Go } from './App';
 import { FilePick } from './Clm';
 import { mimeOf, readDocument, toBase64 } from './docread';
@@ -43,6 +44,7 @@ export function PowersView({ go, initialId }: { go: Go; initialId?: number }) {
           </button>
         }
       />
+      <InsightsPanel module="powers" />
       <div className="grid-main-side wide-side">
         <Card className="flush">
           <div className="toolbar inset">

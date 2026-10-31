@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { api, type CaseSummary, type FinanceEntry, type FinanceReport } from './api';
+import { InsightsPanel } from './Insights';
 import type { Go } from './App';
 import { Card, Empty, ErrorText, Field, formatDate, formatTL, Icon, PageHeader, Stat, Tabs, today, useAsync } from './ui';
 
@@ -57,6 +58,7 @@ export function FinanceView({ go }: { go: Go }) {
           />
         }
       />
+      <InsightsPanel module="finance" />
       <ErrorText error={report.error} />
       {r && (
         <>

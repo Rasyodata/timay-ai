@@ -9,6 +9,7 @@ import {
   type ContractTemplate,
   type User,
 } from './api';
+import { InsightsPanel } from './Insights';
 import type { Go } from './App';
 import { ArmorTab, FilePick, fileToText, readContractFile as readFile, LibraryPanel, PlaybookPanel, ScheduleCard, SigningTab, VersionsTab } from './Clm';
 import { Card, DueLabel, Empty, ErrorText, Field, formatDate, formatTL, Icon, PageHeader, Stat, Tabs, useAsync } from './ui';
@@ -49,6 +50,7 @@ export function ContractsView({ go }: { go: Go }) {
           </>
         }
       />
+      <InsightsPanel module="contracts" />
       <ErrorText error={list.error} />
       <div className="stats">
         <Stat icon="contract" label="Toplam sözleşme" value={list.data?.length ?? 0} />

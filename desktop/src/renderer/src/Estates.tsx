@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { api, RELATION_LABEL, type CaseSummary, type EstateDetail, type EstateSummary } from './api';
+import { InsightsPanel } from './Insights';
 import type { Go } from './App';
 import { Card, DueLabel, Empty, ErrorText, Field, formatDate, formatTL, Icon, PageHeader, Stat, useAsync } from './ui';
 
@@ -43,6 +44,7 @@ export function EstatesView({ go }: { go: Go }) {
           </button>
         }
       />
+      <InsightsPanel module="estates" />
       <ErrorText error={list.error} />
       {creating && (
         <Card title="Yeni miras dosyası" actions={<button className="ghost" onClick={() => setCreating(false)}>Kapat</button>}>

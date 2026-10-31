@@ -2993,3 +2993,342 @@ td label.ack {
 .case-powers {
   margin-top: 16px;
 }
+
+/* ------------------------------------------------------------ İş zekası (analiz paneli) */
+:root {
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --s4: #eda100;
+  --s5: #e87ba4;
+  --s6: #6250d6;
+}
+:root[data-theme='dark'] {
+  --s1: #3987e5;
+  --s2: #d95926;
+  --s3: #199e70;
+  --s4: #c98500;
+  --s5: #d55181;
+  --s6: #9085e9;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --s1: #3987e5;
+    --s2: #d95926;
+    --s3: #199e70;
+    --s4: #c98500;
+    --s5: #d55181;
+    --s6: #9085e9;
+  }
+}
+.insights {
+  margin-bottom: 18px;
+}
+.insights-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  padding: 4px 0;
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: none;
+}
+.insights-toggle:hover {
+  background: none;
+  color: var(--accent);
+}
+.insights.open .insights-toggle {
+  margin-bottom: 10px;
+}
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  min-width: 0;
+}
+.kpi-label {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.kpi-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kpi-value svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.kpi-hint {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.kpi.t-iyi {
+  border-left: 3px solid var(--ok);
+}
+.kpi.t-uyari {
+  border-left: 3px solid var(--warn);
+}
+.kpi.t-uyari .kpi-value svg {
+  color: var(--warn);
+}
+.kpi.t-kritik {
+  border-left: 3px solid var(--bad);
+}
+.kpi.t-kritik .kpi-value svg {
+  color: var(--bad);
+}
+.chart-grid {
+  display: grid;
+  align-items: start;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 12px;
+}
+.chart-card {
+  position: relative;
+  padding: 14px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  min-width: 0;
+}
+.chart-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.chart-head h3 {
+  margin: 0;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.chart-empty {
+  padding: 18px 0;
+  text-align: center;
+}
+.chart-note {
+  margin: 8px 0 0;
+}
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: -4px 0 10px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.chart-legend i,
+.bi-parts-legend i,
+.tip-line i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 4px;
+  vertical-align: -1px;
+}
+.chart-summary {
+  margin: -4px 0 8px;
+  font-variant-numeric: tabular-nums;
+}
+.chart-summary strong {
+  font-size: 18px;
+}
+.chart-tip {
+  position: absolute;
+  z-index: 5;
+  transform: translate(12px, -110%);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 10px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.bi-bars {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bi-bar-row {
+  display: grid;
+  grid-template-columns: minmax(80px, 34%) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  padding: 2px 0;
+}
+.bi-bar-row:hover .bi-bar-label {
+  color: var(--text);
+}
+.bi-bar-label {
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bi-bar-track {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.bi-bar,
+.bi-bar-stack {
+  display: flex;
+  gap: 2px;
+  height: 12px;
+  min-width: 2px;
+  border-radius: 0 4px 4px 0;
+}
+.bi-bar-track.grouped .bi-bar {
+  height: 8px;
+}
+.bi-bar-stack .bi-bar {
+  border-radius: 0;
+}
+.bi-bar-stack .bi-bar:last-child {
+  border-radius: 0 4px 4px 0;
+}
+.bi-bar-value {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  min-width: 44px;
+}
+.bi-months {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  height: 140px;
+  padding-top: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.bi-months-max {
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-size: 10.5px;
+}
+.bi-month {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.bi-month-bars {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+}
+.bi-month:hover .bi-month-bars {
+  background: var(--panel-2);
+  border-radius: 4px 4px 0 0;
+}
+.bi-col {
+  flex: 1;
+  max-width: 18px;
+  min-height: 0;
+  border-radius: 4px 4px 0 0;
+}
+.bi-month-label {
+  margin-top: 4px;
+  margin-bottom: -20px;
+  text-align: center;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.bi-months + * {
+  margin-top: 22px;
+}
+.chart-card:has(.bi-months) {
+  padding-bottom: 30px;
+}
+.bi-parts {
+  position: relative;
+}
+.bi-parts-bar {
+  display: flex;
+  gap: 2px;
+  height: 16px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--chip);
+}
+.bi-parts-bar span {
+  min-width: 3px;
+}
+.bi-parts-legend {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
+}
+.bi-parts-legend li {
+  display: grid;
+  grid-template-columns: auto 1fr auto 44px;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+}
+.bi-parts-legend strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.bi-parts-legend .muted {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.chart-table {
+  width: 100%;
+  font-size: 12.5px;
+}
+.chart-table td:not(:first-child),
+.chart-table th:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.bi-bar-zero {
+  height: 8px;
+}
