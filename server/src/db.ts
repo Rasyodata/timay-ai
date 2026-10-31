@@ -457,6 +457,56 @@ CREATE TABLE IF NOT EXISTS enforcement_queries (
   created_by INTEGER NOT NULL REFERENCES users(id),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- Arabuluculuk: arabulucu profili, dosyalar, taraflar ve toplantılar.
+CREATE TABLE IF NOT EXISTS mediator_profiles (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id),
+  sicil_no TEXT NOT NULL DEFAULT '',
+  id_no TEXT NOT NULL DEFAULT '',
+  address TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  email TEXT NOT NULL DEFAULT '',
+  iban TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS mediation_files (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  mediator_id INTEGER NOT NULL REFERENCES users(id),
+  case_id INTEGER REFERENCES cases(id),
+  buro_no TEXT NOT NULL DEFAULT '',
+  arb_no TEXT NOT NULL DEFAULT '',
+  kind TEXT NOT NULL DEFAULT 'is',
+  mandatory INTEGER NOT NULL DEFAULT 1,
+  subject TEXT NOT NULL DEFAULT '',
+  claim_kurus INTEGER NOT NULL DEFAULT 0,
+  assigned_date TEXT NOT NULL DEFAULT '',
+  adliye TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'basvuru',
+  result_kurus INTEGER NOT NULL DEFAULT 0,
+  hours REAL NOT NULL DEFAULT 2,
+  result_terms TEXT NOT NULL DEFAULT '',
+  note TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS mediation_parties (
+  id INTEGER PRIMARY KEY,
+  file_id INTEGER NOT NULL REFERENCES mediation_files(id),
+  side TEXT NOT NULL DEFAULT 'basvurucu',
+  name TEXT NOT NULL,
+  id_no TEXT NOT NULL DEFAULT '',
+  address TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  email TEXT NOT NULL DEFAULT '',
+  lawyer TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS mediation_meetings (
+  id INTEGER PRIMARY KEY,
+  file_id INTEGER NOT NULL REFERENCES mediation_files(id),
+  date TEXT NOT NULL,
+  time TEXT NOT NULL DEFAULT '',
+  place TEXT NOT NULL DEFAULT '',
+  method TEXT NOT NULL DEFAULT 'yuz_yuze',
+  note TEXT NOT NULL DEFAULT ''
+);
 -- Ajanda (dava defteri): avukatın kendi notları ve randevuları.
 CREATE TABLE IF NOT EXISTS agenda_items (
   id INTEGER PRIMARY KEY,

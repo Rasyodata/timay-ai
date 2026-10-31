@@ -21,6 +21,7 @@ import { insights } from './insights.ts';
 import { dashboard } from './dashboard.ts';
 import * as enforcement from './enforcement.ts';
 import * as icra from './icra.ts';
+import * as mediation from './mediation.ts';
 import * as finance from './finance.ts';
 import * as tasks from './tasks.ts';
 import { getTemplate, listAreas } from './templates.ts';
@@ -259,6 +260,20 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; f
   app.get('/api/enforcement/:id/queries', authed((req, user) => icra.listQueries(db, user, id(req))));
   app.post('/api/enforcement/:id/queries', authed((req, user) => icra.addQuery(db, user, id(req), req.body)));
   app.delete('/api/enforcement-queries/:id', authed((req, user) => icra.deleteQuery(db, user, id(req))));
+  // Arabuluculuk
+  app.get('/api/mediation/meta', authed(() => ({ kinds: mediation.KINDS, statuses: mediation.STATUSES, docs: mediation.DOCS, year: mediation.TARIFF_YEAR })));
+  app.post('/api/mediation/fee', authed((req) => mediation.feeQuote(req.body)));
+  app.get('/api/mediation/profile', authed((_req, user) => mediation.getProfile(db, user)));
+  app.put('/api/mediation/profile', authed((req, user) => mediation.saveProfile(db, user, req.body)));
+  app.get('/api/mediation', authed((_req, user) => mediation.listFiles(db, user)));
+  app.post('/api/mediation', authed((req, user) => mediation.createFile(db, user, req.body)));
+  app.get('/api/mediation/:id', authed((req, user) => mediation.getFile(db, user, id(req))));
+  app.put('/api/mediation/:id', authed((req, user) => mediation.updateFile(db, user, id(req), req.body)));
+  app.post('/api/mediation/:id/parties', authed((req, user) => mediation.addParty(db, user, id(req), req.body)));
+  app.delete('/api/mediation-parties/:id', authed((req, user) => mediation.deleteParty(db, user, id(req))));
+  app.post('/api/mediation/:id/meetings', authed((req, user) => mediation.addMeeting(db, user, id(req), req.body)));
+  app.delete('/api/mediation-meetings/:id', authed((req, user) => mediation.deleteMeeting(db, user, id(req))));
+  app.post('/api/mediation/:id/document', authed((req, user) => mediation.buildDocument(db, user, id(req), String(req.body?.type), req.body ?? {})));
   app.get('/api/enforcement', authed((_req, user) => enforcement.listFiles(db, user)));
   app.post('/api/enforcement', authed((req, user) => enforcement.createFile(db, user, req.body)));
   app.get('/api/enforcement/:id', authed((req, user) => enforcement.getFile(db, user, id(req))));
