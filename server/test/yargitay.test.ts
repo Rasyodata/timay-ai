@@ -90,6 +90,24 @@ describe('Yargıtay çevrimiçi arama ve arşive aktarma', () => {
     await assert.rejects(yargitay.search(db, down, { q: 'fesih' }), status(502));
   });
 
+  it('masaüstünden gelen ham yanıtı ve metni indirmeden işler', async () => {
+    const calls: { url: string; body: any }[] = [];
+    const f = mockFetch(calls);
+    const list = yargitay.mapSearch(db, {
+      total: 2,
+      emsalKararList: [{ documentId: '1001', birimAdi: '12. Hukuk Dairesi', esasNo: '2006/10799', kararNo: '2006/13163', kararTarihiStr: '05.07.2006' }],
+    });
+    assert.equal(list.items[0].date, '2006-07-05');
+    assert.equal(yargitay.mapSearch(db, {}).items.length, 0);
+    const saved = (await yargitay.importDecision(db, f, lawyer, {
+      documentId: '1001',
+      content: Buffer.from(HTML, 'utf8').toString('base64'),
+      mimeType: 'text/html',
+    })) as Record<string, string>;
+    assert.equal(saved.esas_no, '2006/10799');
+    assert.equal(calls.length, 0);
+  });
+
   it('HTML karar metnini düz metne çevirir', () => {
     assert.equal(yargitay.htmlToText('<p>a&nbsp;b</p><p>c&#252;</p>'), 'a b\ncü');
   });

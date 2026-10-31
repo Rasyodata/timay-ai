@@ -85,6 +85,26 @@ function toOnline(db: DB, r: RawDecision): OnlineDecision {
 }
 
 export async function search(db: DB, fetchImpl: Fetch, input: { q?: string; chamber?: string; page?: string | number }) {
+  const data = searchBody(input);
+  return mapSearch(db, await post<SearchData>(fetchImpl, 'searchDocuments', data));
+}
+
+type SearchData = { emsalKararList?: RawDecision[]; total?: number };
+
+/**
+ * Karar veritabanının arama yanıtını listeye çevirir. Masaüstü uygulaması veritabanına
+ * avukatın bilgisayarından (Türkiye'den) ulaşıp ham yanıtı buraya da gönderebilir.
+ */
+export function mapSearch(db: DB, result: SearchData) {
+  const list = Array.isArray(result?.emsalKararList) ? result.emsalKararList.slice(0, 100) : [];
+  return {
+    total: Number(result?.total ?? 0) || 0,
+    items: list.filter((r) => r && r.documentId).map((r) => toOnline(db, r)),
+  };
+}
+
+/** Arama gövdesini oluşturur (masaüstü uygulaması aynı gövdeyi kullanır). */
+export function searchBody(input: { q?: string; chamber?: string; page?: string | number }) {
   const phrase = (input.q ?? '').trim();
   if (phrase.length < 2) throw new ApiError(400, 'Aramak için en az iki harf yazın.');
   const page = Math.max(1, Math.min(Number(input.page) || 1, 1000));
@@ -97,8 +117,7 @@ export async function search(db: DB, fetchImpl: Fetch, input: { q?: string; cham
     sortDirection: 'desc',
   };
   if (input.chamber?.trim()) data.birimAdi = input.chamber.trim();
-  const result = await post<{ emsalKararList?: RawDecision[]; total?: number }>(fetchImpl, 'searchDocuments', data);
-  return { total: Number(result.total ?? 0), items: (result.emsalKararList ?? []).map((r) => toOnline(db, r)) };
+  return data;
 }
 
 const ENTITIES: Record<string, string> = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
@@ -127,12 +146,16 @@ export async function importDecision(
   db: DB,
   fetchImpl: Fetch,
   user: User,
-  input: { documentId?: string; date?: string; chamber?: string },
+  input: { documentId?: string; date?: string; chamber?: string; content?: string; mimeType?: string },
 ) {
   if (user.role !== 'avukat') throw new ApiError(403, 'Arşive yalnızca avukatlar karar ekleyebilir.');
   const docId = String(input.documentId ?? '').trim();
   if (!/^[\w-]{1,64}$/.test(docId)) throw new ApiError(400, 'Geçersiz karar kimliği.');
-  const content = await post<{ content?: string; mimeType?: string }>(fetchImpl, 'getDocumentContent', { documentId: docId });
+  // Metin masaüstünden geldiyse yeniden indirmeye gerek yok.
+  const content =
+    typeof input.content === 'string' && input.content
+      ? { content: input.content, mimeType: input.mimeType }
+      : await post<{ content?: string; mimeType?: string }>(fetchImpl, 'getDocumentContent', { documentId: docId });
   if (!content.content) throw new ApiError(502, 'Karar metni alınamadı.');
   const raw = Buffer.from(content.content, 'base64').toString('utf8');
   const text = content.mimeType && !content.mimeType.includes('html') ? raw.trim() : htmlToText(raw);

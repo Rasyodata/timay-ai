@@ -1,2 +1,6 @@
-// Arayüz şu an Electron API'lerine ihtiyaç duymuyor; dosya ileride (ör. Word'de açma) için duruyor.
-export {};
+import { contextBridge, ipcRenderer } from 'electron';
+
+// Yargıtay karar veritabanına avukatın bilgisayarından ulaşmak için (bkz. main/index.ts).
+contextBridge.exposeInMainWorld('timay', {
+  bedesten: (path: 'searchDocuments' | 'getDocumentContent', data: unknown) => ipcRenderer.invoke('bedesten', path, data),
+});

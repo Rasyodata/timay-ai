@@ -160,6 +160,7 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; f
     }),
   );
   app.get('/api/yargitay/search', authed((req) => yargitay.search(db, fetchImpl, req.query as Record<string, string>)));
+  app.post('/api/yargitay/map', authed((req) => yargitay.mapSearch(db, req.body ?? {})));
   app.post('/api/yargitay/import', authed((req, user) => yargitay.importDecision(db, fetchImpl, user, req.body ?? {})));
   app.post('/api/citations/check', authed((req) => checkCitations(db, String(req.body.body ?? ''))));
 
