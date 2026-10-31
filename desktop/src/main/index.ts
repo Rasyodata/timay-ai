@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { join } from 'node:path';
 
 function createWindow() {
@@ -28,6 +28,26 @@ function createWindow() {
     win.loadFile(join(__dirname, '../renderer/index.html'));
   }
 }
+
+// Yargıtay karar veritabanı (Adalet Bakanlığı) yurt dışındaki sunucuya yanıt vermediği için
+// arama ve karar metni avukatın kendi bilgisayarından çekilir.
+const BEDESTEN = 'https://bedesten.adalet.gov.tr/emsal-karar/';
+ipcMain.handle('bedesten', async (_event, path: unknown, data: unknown) => {
+  if (path !== 'searchDocuments' && path !== 'getDocumentContent') throw new Error('Geçersiz istek.');
+  const res = await fetch(BEDESTEN + path, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      Accept: '*/*',
+      AdaletApplicationName: 'UyapMevzuat',
+      Origin: 'https://mevzuat.adalet.gov.tr',
+      Referer: 'https://mevzuat.adalet.gov.tr/',
+    },
+    body: JSON.stringify({ data, applicationName: 'UyapMevzuat', ...(path === 'searchDocuments' ? { paging: true } : {}) }),
+  });
+  if (!res.ok) throw new Error(`Karar veritabanı yanıt vermedi (${res.status}).`);
+  return res.json();
+});
 
 app.whenReady().then(() => {
   createWindow();

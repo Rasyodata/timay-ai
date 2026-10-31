@@ -133,7 +133,24 @@ function OnlineSearch({ onImported }: { onImported: (id: number) => void }) {
     setBusy('search');
     setErr(null);
     try {
-      setResult(await api(`/yargitay/search?${new URLSearchParams({ q: form.q, chamber: form.chamber, page: String(p) })}`));
+      const bedesten = window.timay?.bedesten;
+      if (bedesten) {
+        // Karar veritabanına bu bilgisayardan ulaşılır; sunucu yalnızca arşivdekileri işaretler.
+        const data: Record<string, unknown> = {
+          pageSize: 10,
+          pageNumber: p,
+          itemTypeList: ['YARGITAYKARARI'],
+          phrase: form.q.trim(),
+          sortFields: ['KARAR_TARIHI'],
+          sortDirection: 'desc',
+        };
+        if (form.chamber) data.birimAdi = form.chamber;
+        const raw = (await bedesten('searchDocuments', data)) as { data?: unknown; metadata?: { FMTE?: string } };
+        if (!raw.data) throw new Error(raw.metadata?.FMTE || 'Karar veritabanından geçersiz yanıt alındı.');
+        setResult(await api('/yargitay/map', { body: raw.data }));
+      } else {
+        setResult(await api(`/yargitay/search?${new URLSearchParams({ q: form.q, chamber: form.chamber, page: String(p) })}`));
+      }
       setPage(p);
     } catch (e) {
       setErr((e as Error).message);
@@ -145,7 +162,15 @@ function OnlineSearch({ onImported }: { onImported: (id: number) => void }) {
   async function importDoc(d: OnlineDecision) {
     setBusy(d.documentId);
     try {
-      const saved = await api<ArchiveDecision>('/yargitay/import', { body: { documentId: d.documentId, date: d.date, chamber: d.chamber } });
+      const body: Record<string, unknown> = { documentId: d.documentId, date: d.date, chamber: d.chamber };
+      const bedesten = window.timay?.bedesten;
+      if (bedesten) {
+        const raw = (await bedesten('getDocumentContent', { documentId: d.documentId })) as { data?: { content?: string; mimeType?: string } };
+        if (!raw.data?.content) throw new Error('Karar metni alınamadı.');
+        body.content = raw.data.content;
+        body.mimeType = raw.data.mimeType;
+      }
+      const saved = await api<ArchiveDecision>('/yargitay/import', { body });
       setResult((r) => r && { ...r, items: r.items.map((x) => (x.documentId === d.documentId ? { ...x, archiveId: saved.id } : x)) });
       onImported(saved.id);
     } catch (e) {
