@@ -20,6 +20,7 @@ import { DOC_KINDS, reviewForUser } from './disciplines.ts';
 import { insights } from './insights.ts';
 import { dashboard } from './dashboard.ts';
 import * as enforcement from './enforcement.ts';
+import * as icra from './icra.ts';
 import * as finance from './finance.ts';
 import * as tasks from './tasks.ts';
 import { getTemplate, listAreas } from './templates.ts';
@@ -250,6 +251,14 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; f
   app.post('/api/finance', authed((req, user) => finance.addEntry(db, user, req.body)));
   app.delete('/api/finance/:id', authed((req, user) => finance.deleteEntry(db, user, id(req))));
 
+  app.get('/api/enforcement/query-kinds', authed(() => icra.QUERY_KINDS));
+  app.get('/api/enforcement/queries/overview', authed((_req, user) => icra.queryOverview(db, user)));
+  app.get('/api/enforcement/export', authed((_req, user) => icra.exportFiles(db, user)));
+  app.post('/api/enforcement/import', authed((req, user) => icra.importFiles(db, user, req.body)));
+  app.get('/api/enforcement/:id/account', authed((req, user) => enforcement.fileAccount(db, user, id(req), String(req.query.date ?? ''))));
+  app.get('/api/enforcement/:id/queries', authed((req, user) => icra.listQueries(db, user, id(req))));
+  app.post('/api/enforcement/:id/queries', authed((req, user) => icra.addQuery(db, user, id(req), req.body)));
+  app.delete('/api/enforcement-queries/:id', authed((req, user) => icra.deleteQuery(db, user, id(req))));
   app.get('/api/enforcement', authed((_req, user) => enforcement.listFiles(db, user)));
   app.post('/api/enforcement', authed((req, user) => enforcement.createFile(db, user, req.body)));
   app.get('/api/enforcement/:id', authed((req, user) => enforcement.getFile(db, user, id(req))));

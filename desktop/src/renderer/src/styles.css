@@ -4840,3 +4840,91 @@ button.danger {
 button.danger:disabled {
   opacity: 0.5;
 }
+
+/* İcra: dosya hesabı, sorgular, aktarım */
+.callout {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  margin-bottom: 12px;
+}
+.callout.warn {
+  border-color: var(--warn, #d97706);
+  background: color-mix(in srgb, var(--warn, #d97706) 8%, var(--surface));
+}
+.inline-field {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.ledger .lg-baslangic td,
+.ledger .lg-hesap td {
+  font-weight: 600;
+}
+.ledger .lg-tahsilat td:nth-child(3) {
+  color: var(--good, #15803d);
+}
+.ledger .lg-masraf td:nth-child(3) {
+  color: var(--bad);
+}
+.q-grid {
+  align-items: start;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+.q-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.q-card.found {
+  border-color: var(--good, #15803d);
+}
+.q-card.stale {
+  border-style: dashed;
+}
+.q-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+.q-result {
+  display: block;
+  margin-top: 4px;
+}
+.q-suggest {
+  color: var(--bad);
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+.q-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.q-form label.check-line {
+  flex-direction: row;
+}
+.import-preview {
+  max-height: 360px;
+  overflow: auto;
+  margin-top: 8px;
+}
+.imp-hata td {
+  color: var(--bad);
+}
+.tag.t-bad {
+  color: var(--bad);
+}
