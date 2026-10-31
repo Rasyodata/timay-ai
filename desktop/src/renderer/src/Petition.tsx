@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { api, type ApiError, type OpposingDetail, type PetitionDetail, type User } from './api';
+import { DisciplineScreen } from './Disciplines';
 import { ApprovalRecord, HighlightedText, needsAck, TeyitPanel } from './Teyit';
-import { ErrorText, PageHeader, StatusBadge, useAsync } from './ui';
+import { ErrorText, Icon, PageHeader, StatusBadge, useAsync } from './ui';
 
 export function OpposingView({ id, back }: { id: number; back: (caseId: number) => void }) {
   const { data, error, setData } = useAsync(() => api<OpposingDetail>(`/opposing/${id}`), [id]);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [disc, setDisc] = useState(false);
 
   if (!data) return <ErrorText error={error} />;
 
@@ -25,12 +27,16 @@ export function OpposingView({ id, back }: { id: number; back: (caseId: number) 
   return (
     <div className="page">
       <PageHeader back={() => back(data.case_id)} title={data.title} subtitle="Karşı taraf dilekçesi" actions={<span className="badge">Karşı taraf</span>} />
+      {disc && <DisciplineScreen body={data.body} title={data.title} caseId={data.case_id} onClose={() => setDisc(false)} />}
       <div className="two-col wide-left">
         <div className="card">
           <HighlightedText body={data.body} items={data.teyit.items} />
         </div>
         <div className="card">
           <p className="muted small">Kırmızı dayanaklar karşı tarafın dilekçesinde doğrulanamayan noktalardır; cevabınızda kullanabilirsiniz.</p>
+          <button onClick={() => setDisc(true)}>
+            <Icon name="shield" /> 8 disiplinle incele
+          </button>
           <TeyitPanel report={data.teyit} onDeep={deep} deepBusy={busy} />
           <ErrorText error={actionError} />
         </div>
@@ -39,13 +45,14 @@ export function OpposingView({ id, back }: { id: number; back: (caseId: number) 
   );
 }
 
-export function PetitionView({ id, user, back }: { id: number; user: User; back: (caseId: number) => void }) {
+export function PetitionView({ id, user, back, autoReview }: { id: number; user: User; back: (caseId: number) => void; autoReview?: boolean }) {
   const { data, error, setData } = useAsync(() => api<PetitionDetail>(`/petitions/${id}`), [id]);
   const [body, setBody] = useState('');
   const [comment, setComment] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [colored, setColored] = useState(false);
+  const [disc, setDisc] = useState<null | 'view' | 'submit'>(autoReview ? 'view' : null);
 
   useEffect(() => {
     if (data) setBody(data.body);
@@ -82,6 +89,16 @@ export function PetitionView({ id, user, back }: { id: number; user: User; back:
         subtitle={`Sürüm ${data.version}`}
         actions={<StatusBadge status={data.status} />}
       />
+      {disc && (
+        <DisciplineScreen
+          body={editable ? body : data.body}
+          title={data.title}
+          caseId={data.case_id}
+          onClose={() => setDisc(null)}
+          onContinue={disc === 'submit' ? () => { setDisc(null); run('/submit'); } : undefined}
+          continueLabel="İncelemeye gönder"
+        />
+      )}
       <div className="two-col wide-left">
         <div className="card">
           {editable && !colored ? (
@@ -100,8 +117,11 @@ export function PetitionView({ id, user, back }: { id: number; user: User; back:
                 Yeni sürüm olarak kaydet
               </button>
             )}
+            <button onClick={() => setDisc('view')}>
+              <Icon name="shield" /> 8 disiplinle incele
+            </button>
             {editable && (
-              <button className="primary" disabled={dirty} onClick={() => run('/submit')} title={dirty ? 'Önce kaydedin' : ''}>
+              <button className="primary" disabled={dirty} onClick={() => setDisc('submit')} title={dirty ? 'Önce kaydedin' : ''}>
                 İncelemeye gönder
               </button>
             )}

@@ -3332,3 +3332,333 @@ td label.ack {
 .bi-bar-zero {
   height: 8px;
 }
+
+/* ------------------------------------------------------------ 8 disiplinli inceleme */
+.doc-kind-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 10px;
+}
+.doc-kind-grid button {
+  padding: 5px 10px;
+  font-size: 12.5px;
+}
+.doc-kind-grid button.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.disc-backdrop {
+  align-items: stretch;
+  padding: 24px;
+}
+.disc-screen {
+  background: var(--bg);
+  color: var(--text);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.disc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 18px 22px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.disc-head h2 {
+  margin: 0 0 2px;
+  font-size: 18px;
+}
+.disc-head p {
+  margin: 0;
+}
+.disc-head-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.disc-kind {
+  gap: 2px;
+}
+.disc-verdict {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  margin: 14px 22px 0;
+  padding: 14px 18px;
+  border-radius: var(--radius);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--ok);
+}
+.disc-verdict.v-duzeltme {
+  border-left-color: var(--warn);
+}
+.disc-verdict.v-ciddi {
+  border-left-color: var(--bad);
+}
+.disc-score {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.disc-score strong {
+  font-size: 34px;
+  line-height: 1;
+}
+.disc-score span {
+  color: var(--muted);
+}
+.disc-verdict-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.disc-verdict-text > strong {
+  font-size: 15px;
+}
+.disc-verdict-text > span {
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.disc-priorities {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  display: grid;
+  gap: 3px;
+}
+.disc-priorities li.l-kritik::marker {
+  color: var(--bad);
+  font-weight: 700;
+}
+.disc-grid {
+  flex: 1;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  align-content: start;
+  gap: 12px;
+  padding: 14px 22px;
+}
+.disc-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  border-top: 3px solid var(--border-strong);
+  transition: border-color 0.2s, opacity 0.2s;
+  min-width: 0;
+}
+.disc-card.s-running {
+  opacity: 0.7;
+}
+.disc-card.b-iyi {
+  border-top-color: var(--ok);
+}
+.disc-card.b-uyari {
+  border-top-color: var(--warn);
+}
+.disc-card.b-kritik {
+  border-top-color: var(--bad);
+}
+.disc-card.disc-general {
+  background: var(--panel-2);
+}
+.disc-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.disc-no {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--navy);
+  color: #fff;
+}
+.disc-title {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.disc-pill {
+  flex: none;
+  min-width: 34px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 12.5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+.disc-pill.b-iyi {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.disc-pill.b-uyari {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.disc-pill.b-kritik {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+.disc-spinner {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: disc-spin 0.8s linear infinite;
+}
+@keyframes disc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.disc-findings {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+  font-size: 12.5px;
+}
+.disc-findings li {
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+}
+.disc-findings li svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+}
+.disc-findings li.l-iyi svg {
+  color: var(--ok);
+}
+.disc-findings li.l-uyari svg {
+  color: var(--warn);
+}
+.disc-findings li.l-kritik svg {
+  color: var(--bad);
+}
+.disc-findings li > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.disc-basis {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.disc-findings q {
+  font-size: 11.5px;
+  color: var(--text-2);
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+.disc-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 22px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+}
+.disc-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 22px 0;
+  padding: 10px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.disc-progress-bar {
+  flex: 0 0 220px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--chip);
+  overflow: hidden;
+}
+.disc-progress-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.5s ease;
+}
+.disc-card.s-waiting {
+  opacity: 0.45;
+}
+.disc-card.s-running {
+  opacity: 1;
+  border-top-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.disc-card.s-done {
+  animation: disc-in 0.35s ease;
+}
+@keyframes disc-in {
+  from {
+    transform: translateY(6px);
+    opacity: 0.4;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.disc-reading {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+.disc-reading span {
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--chip) 0%, var(--accent-soft) 50%, var(--chip) 100%);
+  background-size: 200% 100%;
+  animation: disc-shimmer 1s linear infinite;
+}
+.disc-reading span:nth-child(2) {
+  width: 80%;
+}
+.disc-reading span:nth-child(3) {
+  width: 60%;
+}
+@keyframes disc-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .disc-spinner,
+  .disc-reading span,
+  .disc-card.s-done {
+    animation: none;
+  }
+}
