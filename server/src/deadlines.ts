@@ -1,4 +1,5 @@
 import type { User } from './auth.ts';
+import { renewalNotice } from './clm.ts';
 import type { DB } from './db.ts';
 import { ApiError } from './errors.ts';
 import { DATE, optionalDate, ownedCaseId } from './money.ts';
@@ -245,11 +246,25 @@ export function risks(db: DB, user: User): Risk[] {
     }
   }
 
-  for (const c of all<{ id: number; title: string; end_date: string }>(
-    `SELECT id, title, end_date FROM contracts WHERE office_id = ? AND status = 'yururlukte' AND end_date != '' AND end_date <= ?`,
+  for (const c of all<{ id: number; title: string; end_date: string; body: string }>(
+    `SELECT id, title, end_date, body FROM contracts WHERE office_id = ? AND status = 'yururlukte' AND end_date != '' AND end_date <= ?`,
     o,
-    addDays(30),
+    addDays(60),
   )) {
+    // Otomatik uzayan sözleşmede bitişten 60 gün önce, fesih ihbarının son gününü bildir.
+    const renewal = renewalNotice(c.body, c.end_date);
+    if (renewal && c.end_date >= today) {
+      const last = renewal.lastNoticeDate.split('-').reverse().join('.');
+      out.push({
+        level: renewal.lastNoticeDate <= addDays(7) ? 'yuksek' : 'orta',
+        area: 'Sözleşme',
+        title: `Otomatik uzayacak: ${c.title}`,
+        detail: `Sözleşme ${c.end_date.split('-').reverse().join('.')} tarihinde bitiyor. ${renewal.noticeDays ? `${last} tarihine kadar fesih ihbarı gönderilmezse` : 'Fesih ihbarı gönderilmezse'} kendiliğinden uzayacak. Mevcut şartlardan memnun musunuz?`,
+        link: { view: 'contract', id: c.id },
+      });
+      continue;
+    }
+    if (c.end_date > addDays(30)) continue;
     out.push({
       level: c.end_date < today ? 'yuksek' : 'orta',
       area: 'Sözleşme',
@@ -269,7 +284,7 @@ export function risks(db: DB, user: User): Risk[] {
       level: 'yuksek',
       area: 'Sözleşme',
       title: `Yerine getirilmemiş taahhüt: ${o2.title}`,
-      detail: `${o2.text} · son gün ${o2.due_date.split('-').reverse().join('.')}`,
+      detail: `${o2.text} · son gün ${o2.due_date.split('-').reverse().join('.')}, ${Math.round((Date.parse(today) - Date.parse(o2.due_date)) / 86_400_000)} gün gecikti. Gecikme tazminatı ve ihtarname taslağı sözleşme sayfasında.`,
       link: { view: 'contract', id: o2.contract_id },
     });
   }

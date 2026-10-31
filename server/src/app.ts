@@ -3,6 +3,7 @@ import * as agendaMod from './agenda.ts';
 import * as auth from './auth.ts';
 import * as cases from './cases.ts';
 import * as consultancy from './consultancy.ts';
+import * as clm from './clm.ts';
 import * as contracts from './contracts.ts';
 import { dashboard } from './dashboard.ts';
 import * as enforcement from './enforcement.ts';
@@ -11,6 +12,7 @@ import * as tasks from './tasks.ts';
 import { getTemplate, listAreas } from './templates.ts';
 import { checkCitations } from './citations.ts';
 import * as deadlines from './deadlines.ts';
+import { readDocx } from './docx.ts';
 import type { DB } from './db.ts';
 import { archiveStats, getDecision, searchArchive, searchDecisions, upsertDecision } from './decisions.ts';
 import { ApiError } from './errors.ts';
@@ -26,7 +28,7 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; f
   const checker = options.deepChecker ?? null;
   const fetchImpl = options.fetch ?? (fetch as unknown as yargitay.Fetch);
   const app = express();
-  app.use(express.json({ limit: '5mb' }));
+  app.use(express.json({ limit: '25mb' }));
   // Masaüstü uygulaması file:// kökeninden istek atar; kimlik doğrulama çerezle değil
   // Bearer token ile yapıldığı için tüm kökenlere izin vermek güvenlidir.
   app.use((req, res, next) => {
@@ -112,6 +114,50 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; f
     authed((req, user) => contracts.setObligationDone(db, user, id(req), Boolean(req.body.done))),
   );
 
+  // Sözleşme zırhı
+  app.get('/api/playbook', authed((_req, user) => clm.getPlaybook(db, user)));
+  app.put('/api/playbook', authed((req, user) => clm.savePlaybook(db, user, req.body ?? {})));
+  app.get('/api/clauses', authed((req, user) => ({ topics: clm.TOPICS, items: clm.listClauses(db, user, req.query as Record<string, string>) })));
+  app.post('/api/clauses', authed((req, user) => clm.addClause(db, user, req.body ?? {})));
+  app.delete('/api/clauses/:id', authed((req, user) => clm.deleteClause(db, user, id(req))));
+  app.post(
+    '/api/documents/extract',
+    authed((req) => {
+      const doc = readDocx(Buffer.from(String(req.body?.fileBase64 ?? ''), 'base64'));
+      return { text: doc.accepted, trackedChanges: doc.trackedChanges };
+    }),
+  );
+  app.get('/api/contracts/:id/review', authed((req, user) => clm.contractReview(db, user, id(req))));
+  app.put('/api/contracts/:id/side', authed((req, user) => clm.setSide(db, user, id(req), String(req.body.side ?? ''))));
+  app.post('/api/contracts/:id/apply-clause', authed((req, user) => clm.applyClause(db, user, id(req), req.body ?? {})));
+  app.get('/api/contracts/:id/versions', authed((req, user) => clm.listVersions(db, user, id(req))));
+  app.post('/api/contracts/:id/versions', authed((req, user) => clm.uploadVersion(db, user, id(req), req.body ?? {})));
+  app.get(
+    '/api/contracts/:id/compare',
+    authed((req, user) => clm.compareVersions(db, user, id(req), Number(req.query.from), Number(req.query.to))),
+  );
+  app.post(
+    '/api/contracts/:id/export',
+    authed((req, user) => {
+      const out = clm.exportRedline(db, user, id(req));
+      return { fileName: out.fileName, base64: out.buffer.toString('base64') };
+    }),
+  );
+  app.post('/api/contracts/:id/lock', authed((req, user) => clm.lockContract(db, user, id(req), req.body ?? {})));
+  app.get('/api/contracts/:id/signing', authed((req, user) => clm.signingState(db, user, id(req))));
+  app.post(
+    '/api/contracts/:id/signers/:signerId/sign',
+    authed((req, user) => clm.markSigned(db, user, id(req), Number(req.params.signerId), req.body?.date)),
+  );
+  app.post('/api/contracts/:id/schedule', authed((req, user) => clm.buildSchedule(db, user, id(req), req.body ?? {})));
+  app.put('/api/contracts/:id/units', authed((req, user) => clm.setUnits(db, user, id(req), req.body?.units)));
+  app.get('/api/contracts/:id/alarms', authed((req, user) => clm.alarms(db, user, id(req))));
+  app.get(
+    '/api/contracts/:id/notice/:obligationId',
+    authed((req, user) => clm.noticeDraft(db, user, id(req), Number(req.params.obligationId))),
+  );
+  app.put('/api/obligations/:id/direction', authed((req, user) => clm.setObligationDirection(db, user, id(req), String(req.body.direction ?? ''))));
+
   app.get('/api/finance', authed((req, user) => finance.financeReport(db, user, req.query as Record<string, string>)));
   app.post('/api/finance', authed((req, user) => finance.addEntry(db, user, req.body)));
   app.delete('/api/finance/:id', authed((req, user) => finance.deleteEntry(db, user, id(req))));
@@ -160,7 +206,11 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; f
     }),
   );
   app.get('/api/yargitay/search', authed((req) => yargitay.search(db, fetchImpl, req.query as Record<string, string>)));
-  app.post('/api/yargitay/map', authed((req) => yargitay.mapSearch(db, req.body ?? {})));
+  app.post('/api/yargitay/body', authed((req) => yargitay.searchBody(req.body ?? {}, req.body?.withDates !== false)));
+  app.post('/api/yargitay/map', authed((req) => {
+    const result = yargitay.mapSearch(db, req.body?.data ?? req.body ?? {});
+    return req.body?.filter ? { ...result, items: yargitay.filterYears(result.items, req.body.filter) } : result;
+  }));
   app.post('/api/yargitay/import', authed((req, user) => yargitay.importDecision(db, fetchImpl, user, req.body ?? {})));
   app.post('/api/citations/check', authed((req) => checkCitations(db, String(req.body.body ?? ''))));
 

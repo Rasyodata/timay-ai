@@ -123,7 +123,8 @@ function ArchiveSearch({ onOpen }: { onOpen: (id: number) => void }) {
 }
 
 function OnlineSearch({ onImported }: { onImported: (id: number) => void }) {
-  const [form, setForm] = useState({ q: '', chamber: '' });
+  const [form, setForm] = useState({ q: '', chamber: '', exact: false, exclude: '', yearFrom: '', yearTo: '' });
+  const [advanced, setAdvanced] = useState(false);
   const [page, setPage] = useState(1);
   const [result, setResult] = useState<{ total: number; items: OnlineDecision[] } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -134,22 +135,21 @@ function OnlineSearch({ onImported }: { onImported: (id: number) => void }) {
     setErr(null);
     try {
       const bedesten = window.timay?.bedesten;
+      const input = { ...form, exact: form.exact ? '1' : '', page: String(p) };
       if (bedesten) {
-        // Karar veritabanına bu bilgisayardan ulaşılır; sunucu yalnızca arşivdekileri işaretler.
-        const data: Record<string, unknown> = {
-          pageSize: 10,
-          pageNumber: p,
-          itemTypeList: ['YARGITAYKARARI'],
-          phrase: form.q.trim(),
-          sortFields: ['KARAR_TARIHI'],
-          sortDirection: 'desc',
+        // Karar veritabanına bu bilgisayardan ulaşılır; sunucu arama gövdesini kurar ve arşivdekileri işaretler.
+        const run = async (withDates: boolean) => {
+          const data = await api<Record<string, unknown>>('/yargitay/body', { body: { ...input, withDates } });
+          return (await bedesten('searchDocuments', data)) as { data?: unknown; metadata?: { FMTE?: string } };
         };
-        if (form.chamber) data.birimAdi = form.chamber;
-        const raw = (await bedesten('searchDocuments', data)) as { data?: unknown; metadata?: { FMTE?: string } };
+        const dated = Boolean(form.yearFrom || form.yearTo);
+        let raw = dated ? await run(true).catch(() => ({}) as { data?: unknown; metadata?: { FMTE?: string } }) : await run(true);
+        // Tarih süzgeci kabul edilmezse tarihsiz arar, yıl aralığını sonuçta uygular.
+        if (!raw.data && dated) raw = await run(false);
         if (!raw.data) throw new Error(raw.metadata?.FMTE || 'Karar veritabanından geçersiz yanıt alındı.');
-        setResult(await api('/yargitay/map', { body: raw.data }));
+        setResult(await api('/yargitay/map', { body: { data: raw.data, filter: { yearFrom: form.yearFrom, yearTo: form.yearTo } } }));
       } else {
-        setResult(await api(`/yargitay/search?${new URLSearchParams({ q: form.q, chamber: form.chamber, page: String(p) })}`));
+        setResult(await api(`/yargitay/search?${new URLSearchParams(input)}`));
       }
       setPage(p);
     } catch (e) {
@@ -199,9 +199,32 @@ function OnlineSearch({ onImported }: { onImported: (id: number) => void }) {
             <option key={c}>{c}</option>
           ))}
         </select>
+        <button type="button" className={advanced ? 'active' : ''} onClick={() => setAdvanced(!advanced)}>
+          <Icon name="filter" /> Filtreler
+        </button>
         <button className="primary" type="submit" disabled={busy === 'search'}>
           {busy === 'search' ? 'Aranıyor…' : 'Ara'}
         </button>
+        {advanced && (
+          <div className="search-filters">
+            <label className="check-line">
+              <input type="checkbox" checked={form.exact} onChange={(e) => setForm({ ...form, exact: e.target.checked })} />
+              Tam ifade olarak ara
+            </label>
+            <label className="field full">
+              <span>Geçmesin (virgülle ayırın)</span>
+              <input value={form.exclude} onChange={(e) => setForm({ ...form, exclude: e.target.value })} placeholder="ör. kira, tahliye" />
+            </label>
+            <label className="field">
+              <span>Karar yılı (başlangıç)</span>
+              <input type="number" min={1950} max={2100} value={form.yearFrom} onChange={(e) => setForm({ ...form, yearFrom: e.target.value })} placeholder="ör. 2018" />
+            </label>
+            <label className="field">
+              <span>Karar yılı (bitiş)</span>
+              <input type="number" min={1950} max={2100} value={form.yearTo} onChange={(e) => setForm({ ...form, yearTo: e.target.value })} placeholder="ör. 2025" />
+            </label>
+          </div>
+        )}
       </form>
       <ErrorText error={err} />
       {!result ? (

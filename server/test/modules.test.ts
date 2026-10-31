@@ -89,6 +89,19 @@ describe('büro modülleri', () => {
     assert.throws(() => tasks.createTask(db, lawyer, { title: 'x', assigneeId: stranger.id }), status(400));
   });
 
+  it('görev panosu: kontrol eden atanmışsa görevi yalnızca o tamamlar', () => {
+    const t = tasks.createTask(db, lawyer, { title: 'Cevap dilekçesi', assigneeId: other.id, reviewerId: lawyer.id }) as { id: number };
+    assert.equal((tasks.updateTask(db, other, t.id, { status: 'devam' }) as { status: string }).status, 'devam');
+    assert.throws(() => tasks.updateTask(db, other, t.id, { status: 'tamam' }), status(403));
+    // Eski "tamamlandı" işareti incelemeye gönderir.
+    assert.equal((tasks.updateTask(db, other, t.id, { done: true }) as { status: string; done: number }).status, 'inceleme');
+    const done = tasks.updateTask(db, lawyer, t.id, { status: 'tamam' }) as { status: string; done: number };
+    assert.equal(done.status, 'tamam');
+    assert.equal(done.done, 1);
+    assert.throws(() => tasks.updateTask(db, lawyer, t.id, { status: 'bitti' }), status(400));
+    assert.throws(() => tasks.createTask(db, lawyer, { title: 'x', reviewerId: stranger.id }), status(400));
+  });
+
   it('muhasebe kâr, KDV ve stopajı hesaplar', () => {
     finance.addEntry(db, lawyer, { kind: 'gelir', amount: 10000, vatRate: 20, withholdingRate: 20, date: '2026-10-01', caseId });
     finance.addEntry(db, lawyer, { kind: 'gider', amount: '2.500,50', vatRate: 20, date: '2026-10-02' });

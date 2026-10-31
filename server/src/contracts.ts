@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { User } from './auth.ts';
+import { getPlaybook, reviewText, type Side } from './clm.ts';
 import type { DB } from './db.ts';
 import { ApiError } from './errors.ts';
 import { optionalDate, ownedCaseId, toKurus } from './money.ts';
@@ -362,6 +363,7 @@ interface ContractRow {
   created_at: string;
   review_status: string;
   submitted_by: number | null;
+  locked_at: string;
 }
 
 function load(db: DB, user: User, id: number): ContractRow {
@@ -406,6 +408,9 @@ export function createContract(db: DB, user: User, input: ContractInput) {
 
 export function updateContract(db: DB, user: User, id: number, input: ContractInput) {
   const c = load(db, user, id);
+  if (c.locked_at && input.body !== undefined && input.body !== c.body) {
+    throw new ApiError(400, 'Sözleşme imzaya kilitlendi; metin değiştirilemez.');
+  }
   // Metin değişirse önceki onay geçersiz olur.
   if (input.body !== undefined && input.body !== c.body && c.review_status) {
     db.prepare("UPDATE contracts SET review_status = '' WHERE id = ?").run(id);
@@ -440,7 +445,15 @@ export function getContract(db: DB, user: User, id: number) {
     )
     .all(id);
   const submitter = c.submitted_by ? (db.prepare('SELECT name FROM users WHERE id = ?').get(c.submitted_by) as { name: string }) : null;
-  return { ...c, submitted_by_name: submitter?.name ?? '', obligations, reviews, analysis: analyzeContract(c.body) };
+  const armor = c.body.trim() ? reviewText(c.body, c.kind, ((c as { side?: string }).side || 'genel') as Side, getPlaybook(db, user)) : null;
+  return {
+    ...c,
+    submitted_by_name: submitter?.name ?? '',
+    obligations,
+    reviews,
+    analysis: analyzeContract(c.body),
+    armor: armor && { score: armor.score, band: armor.band, critical: armor.findings.filter((f) => f.verdict !== 'lehte' && f.severity === 'yuksek').length },
+  };
 }
 
 export function addObligation(

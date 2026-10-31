@@ -84,9 +84,9 @@ function toOnline(db: DB, r: RawDecision): OnlineDecision {
   };
 }
 
-export async function search(db: DB, fetchImpl: Fetch, input: { q?: string; chamber?: string; page?: string | number }) {
-  const data = searchBody(input);
-  return mapSearch(db, await post<SearchData>(fetchImpl, 'searchDocuments', data));
+export async function search(db: DB, fetchImpl: Fetch, input: SearchInput) {
+  const result = mapSearch(db, await post<SearchData>(fetchImpl, 'searchDocuments', searchBody(input)));
+  return { ...result, items: filterYears(result.items, input) };
 }
 
 type SearchData = { emsalKararList?: RawDecision[]; total?: number };
@@ -103,21 +103,64 @@ export function mapSearch(db: DB, result: SearchData) {
   };
 }
 
+export type SearchInput = {
+  q?: string;
+  chamber?: string;
+  page?: string | number;
+  /** Aranan ifade bütün olarak geçmeli. */
+  exact?: string | boolean;
+  /** Virgül ya da boşlukla ayrılmış, sonuçta geçmemesi gereken kelimeler. */
+  exclude?: string;
+  yearFrom?: string | number;
+  yearTo?: string | number;
+};
+
+/** Arama ifadesini kurar: tam ifade tırnakla, hariç kelimeler eksi işaretiyle. */
+export function buildPhrase(input: SearchInput) {
+  let phrase = (input.q ?? '').trim();
+  const exact = input.exact === true || input.exact === '1' || input.exact === 'true';
+  if (exact && phrase && !phrase.startsWith('"')) phrase = `"${phrase.replace(/"/g, '')}"`;
+  const excluded = (input.exclude ?? '')
+    .split(/[,\s]+/)
+    .map((w) => w.replace(/^[-+]/, '').trim())
+    .filter((w) => w.length > 1);
+  return [phrase, ...excluded.map((w) => `-${w}`)].join(' ');
+}
+
+function year(value: string | number | undefined) {
+  const y = Number(value);
+  return Number.isInteger(y) && y >= 1900 && y <= 2100 ? y : null;
+}
+
 /** Arama gövdesini oluşturur (masaüstü uygulaması aynı gövdeyi kullanır). */
-export function searchBody(input: { q?: string; chamber?: string; page?: string | number }) {
-  const phrase = (input.q ?? '').trim();
-  if (phrase.length < 2) throw new ApiError(400, 'Aramak için en az iki harf yazın.');
+export function searchBody(input: SearchInput, withDates = true) {
+  if ((input.q ?? '').trim().length < 2) throw new ApiError(400, 'Aramak için en az iki harf yazın.');
   const page = Math.max(1, Math.min(Number(input.page) || 1, 1000));
   const data: Record<string, unknown> = {
     pageSize: PAGE_SIZE,
     pageNumber: page,
     itemTypeList: ['YARGITAYKARARI'],
-    phrase,
+    phrase: buildPhrase(input),
     sortFields: ['KARAR_TARIHI'],
     sortDirection: 'desc',
   };
   if (input.chamber?.trim()) data.birimAdi = input.chamber.trim();
+  const from = year(input.yearFrom);
+  const to = year(input.yearTo);
+  if (withDates && from) data.kararTarihiStart = `${from}-01-01T00:00:00.000Z`;
+  if (withDates && to) data.kararTarihiEnd = `${to}-12-31T23:59:59.999Z`;
   return data;
+}
+
+/** Yıl aralığını sonuç listesinde de uygular (veritabanı tarih süzgecini yok sayarsa diye). */
+export function filterYears<T extends { date: string }>(items: T[], input: SearchInput) {
+  const from = year(input.yearFrom);
+  const to = year(input.yearTo);
+  return items.filter((d) => {
+    const y = Number(d.date.slice(0, 4));
+    if (!y) return true;
+    return (!from || y >= from) && (!to || y <= to);
+  });
 }
 
 const ENTITIES: Record<string, string> = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };

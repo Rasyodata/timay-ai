@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { api, getServerUrl, hasToken, setServerUrl, setToken, type User } from './api';
+import { api, hasToken, setToken, type User } from './api';
 import { AgendaView, TasksView } from './Agenda';
+import { CalculatorsView } from './Calculators';
 import { CasesView, CaseView } from './Cases';
 import { ConsultancyClientView, ConsultancyView } from './Consultancy';
 import { ContractsView, ContractView } from './Contracts';
@@ -11,9 +12,12 @@ import { EnforcementFileView, EnforcementView } from './Enforcement';
 import { FinanceView } from './Finance';
 import { DecisionsView } from './Archive';
 import { TeamView } from './Office';
+import { applyTheme, ConnectionBanner, SettingsGate, SettingsView } from './Settings';
 import { OpposingView, PetitionView } from './Petition';
 import { TemplatesView } from './Templates';
 import { ErrorText, Icon, type IconName } from './ui';
+
+applyTheme();
 
 export type View =
   | { name: 'dashboard' }
@@ -35,7 +39,9 @@ export type View =
   | { name: 'estate'; id: number }
   | { name: 'consultancy-client'; id: number }
   | { name: 'decisions' }
-  | { name: 'team' };
+  | { name: 'team' }
+  | { name: 'settings' }
+  | { name: 'calculators' };
 
 export type Go = (view: View) => void;
 
@@ -69,8 +75,7 @@ function AuthScreen({ onLogin }: { onLogin: (u: User) => void }) {
   const [form, setForm] = useState({ officeName: '', name: '', email: '', password: '', token: '' });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [server, setServer] = useState(getServerUrl());
-  const [editingServer, setEditingServer] = useState(false);
+  const [settings, setSettings] = useState<'closed' | 'gate' | 'open'>('closed');
   const field = (key: keyof typeof form) => ({
     value: form[key],
     onChange: (e: { target: { value: string } }) => setForm({ ...form, [key]: e.target.value }),
@@ -98,8 +103,16 @@ function AuthScreen({ onLogin }: { onLogin: (u: User) => void }) {
     }
   }
 
+  if (settings === 'open')
+    return (
+      <div className="auth-settings">
+        <SettingsView onClose={() => setSettings('closed')} />
+      </div>
+    );
+
   return (
     <div className="auth-screen">
+      {settings === 'gate' && <SettingsGate user={null} onOpen={() => setSettings('open')} onCancel={() => setSettings('closed')} />}
       <aside className="auth-brand">
         <div className="logo">
           <span className="logo-mark">T</span> Timay
@@ -174,28 +187,11 @@ function AuthScreen({ onLogin }: { onLogin: (u: User) => void }) {
           <button className="primary big" type="submit" disabled={busy}>
             {busy ? 'Bekleyin…' : mode === 'login' ? 'Giriş yap' : mode === 'register' ? 'Büroyu oluştur' : 'Hesabı oluştur'}
           </button>
-          {editingServer ? (
-            <div className="row server">
-              <input value={server} onChange={(e) => setServer(e.target.value)} placeholder="https://" />
-              <button
-                type="button"
-                onClick={() => {
-                  setServerUrl(server);
-                  setServer(getServerUrl());
-                  setEditingServer(false);
-                }}
-              >
-                Kaydet
-              </button>
-            </div>
-          ) : (
-            <p className="muted small server">
-              Sunucu: {server}{' '}
-              <button type="button" className="link" onClick={() => setEditingServer(true)}>
-                Değiştir
-              </button>
-            </p>
-          )}
+          <p className="muted small server">
+            <button type="button" className="link" onClick={() => setSettings('gate')}>
+              <Icon name="gear" /> Sistem ayarları
+            </button>
+          </p>
         </form>
       </main>
     </div>
@@ -210,6 +206,7 @@ const NAV: { section: string; items: { name: View['name']; label: string; icon: 
       { name: 'agenda', label: 'Ajanda', icon: 'calendar' },
       { name: 'tasks', label: 'Görevler', icon: 'check' },
       { name: 'deadlines', label: 'Süreler ve riskler', icon: 'shield' },
+      { name: 'calculators', label: 'Hesaplayıcılar', icon: 'calc' },
     ],
   },
   {
@@ -246,6 +243,8 @@ const PARENT: Partial<Record<View['name'], View['name']>> = {
 
 function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [view, setView] = useState<View>({ name: 'dashboard' });
+  const [gate, setGate] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const go: Go = (v) => {
     setView(v);
     document.querySelector('main.content')?.scrollTo(0, 0);
@@ -314,6 +313,12 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
     case 'team':
       content = <TeamView user={user} />;
       break;
+    case 'calculators':
+      content = <CalculatorsView />;
+      break;
+    case 'settings':
+      content = <SettingsView onClose={() => go({ name: 'dashboard' })} onReconnected={() => setReloadKey((k) => k + 1)} />;
+      break;
   }
 
   return (
@@ -344,12 +349,32 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
             <strong>{user.name}</strong>
             <span>{user.role === 'avukat' ? 'Avukat' : 'Stajyer'}</span>
           </span>
+          {Boolean(user.is_admin) && (
+            <button className={`ghost ${view.name === 'settings' ? 'active' : ''}`} onClick={() => setGate(true)} title="Sistem ayarları">
+              <Icon name="gear" />
+            </button>
+          )}
           <button className="ghost" onClick={onLogout} title="Çıkış">
             <Icon name="logout" />
           </button>
         </div>
       </nav>
-      <main className="content">{content}</main>
+      <main className="content">
+        <ConnectionBanner onSettings={() => setGate(true)} onReconnected={() => setReloadKey((k) => k + 1)} />
+        <div key={reloadKey} className="content-inner">
+          {content}
+        </div>
+      </main>
+      {gate && (
+        <SettingsGate
+          user={user}
+          onOpen={() => {
+            setGate(false);
+            go({ name: 'settings' });
+          }}
+          onCancel={() => setGate(false)}
+        />
+      )}
     </div>
   );
 }
