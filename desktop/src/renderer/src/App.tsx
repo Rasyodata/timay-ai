@@ -5,6 +5,8 @@ import { CalculatorsView } from './Calculators';
 import { CasesView, CaseView } from './Cases';
 import { ConsultancyClientView, ConsultancyView } from './Consultancy';
 import { ContractsView, ContractView } from './Contracts';
+import { NotesView } from './Notes';
+import { SearchView } from './Search';
 import { NotificationBell } from './Notifications';
 import { ContractGroupView } from './ContractGroups';
 import { DashboardView } from './Dashboard';
@@ -34,6 +36,8 @@ export type View =
   | { name: 'contracts' }
   | { name: 'contract'; id: number }
   | { name: 'contract-group'; id: number }
+  | { name: 'notes' }
+  | { name: 'search'; q?: string }
   | { name: 'finance' }
   | { name: 'enforcement' }
   | { name: 'enforcement-file'; id: number }
@@ -208,9 +212,11 @@ const NAV: { section: string; items: { name: View['name']; label: string; icon: 
     section: 'Büro',
     items: [
       { name: 'dashboard', label: 'Ana sayfa', icon: 'home' },
+      { name: 'search', label: 'Ara (Ctrl+K)', icon: 'search' },
       { name: 'agenda', label: 'Ajanda', icon: 'calendar' },
       { name: 'tasks', label: 'Görevler', icon: 'check' },
       { name: 'deadlines', label: 'Süreler ve riskler', icon: 'shield' },
+      { name: 'notes', label: 'Akıllı notlar', icon: 'pin' },
       { name: 'calculators', label: 'Hesaplayıcılar', icon: 'calc' },
     ],
   },
@@ -258,6 +264,18 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
   };
   const active = PARENT[view.name] ?? view.name;
 
+  // Ctrl+K: her sayfadan aramaya.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        go({ name: 'search' });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   let content: ReactNode;
   switch (view.name) {
     case 'dashboard':
@@ -289,6 +307,12 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
       break;
     case 'contract':
       content = <ContractView id={view.id} user={user} go={go} />;
+      break;
+    case 'notes':
+      content = <NotesView go={go} />;
+      break;
+    case 'search':
+      content = <SearchView go={go} initial={view.q} />;
       break;
     case 'contract-group':
       content = <ContractGroupView key={view.id} id={view.id} go={go} />;
