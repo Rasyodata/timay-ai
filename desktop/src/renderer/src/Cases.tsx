@@ -18,6 +18,8 @@ import type { Go } from './App';
 import { TaskList } from './Agenda';
 import { CaseDocuments } from './CaseDocs';
 import { CasePowers } from './Powers';
+import { DOC_KIND_OPTIONS } from './Disciplines';
+import { skeleton } from './skeletons';
 import { FilePick } from './Clm';
 import { documentText } from './docread';
 import { Card, DueLabel, Empty, ErrorText, Field, formatDate, formatTL, Icon, PageHeader, StatusBadge, Tabs, today, useAsync } from './ui';
@@ -352,6 +354,7 @@ function CaseGeneral({
 function CasePetitions({ caseId, go, areas, defaultArea }: { caseId: number; go: Go; areas: Area[]; defaultArea: string }) {
   const petitions = useAsync(() => api<PetitionSummary[]>(`/cases/${caseId}/petitions`), [caseId]);
   const [title, setTitle] = useState('');
+  const [kind, setKind] = useState('dava');
   const [area, setArea] = useState(defaultArea);
   const [err, setErr] = useState<string | null>(null);
   const templates = areas.find((a) => a.id === area)?.templates ?? [];
@@ -359,8 +362,10 @@ function CasePetitions({ caseId, go, areas, defaultArea }: { caseId: number; go:
   async function blank(e: FormEvent) {
     e.preventDefault();
     try {
-      const p = await api<PetitionDetail>('/petitions', { body: { caseId, title, body: '' } });
-      go({ name: 'petition', id: p.id });
+      const label = DOC_KIND_OPTIONS.find((k) => k.id === kind)?.label ?? 'Dilekçe';
+      const c = await api<CaseDetail>(`/cases/${caseId}`);
+      const p = await api<PetitionDetail>('/petitions', { body: { caseId, title: title.trim() || label, body: skeleton(kind, c) } });
+      go({ name: 'petition', id: p.id, review: true });
     } catch (error) {
       setErr((error as Error).message);
     }
@@ -369,7 +374,7 @@ function CasePetitions({ caseId, go, areas, defaultArea }: { caseId: number; go:
   async function fromTemplate(templateId: string) {
     try {
       const p = await createFromTemplate(caseId, templateId);
-      go({ name: 'petition', id: p.id });
+      go({ name: 'petition', id: p.id, review: true });
     } catch (error) {
       setErr((error as Error).message);
     }
@@ -432,10 +437,20 @@ function CasePetitions({ caseId, go, areas, defaultArea }: { caseId: number; go:
           </ul>
           {!area && <p className="muted small">Alan seçince şablonlar listelenir.</p>}
         </Card>
-        <Card title="Boş dilekçe">
+        <Card title="Yeni belge oluştur">
+          <p className="muted small">Türü seçin; iskelet hazırlanır ve 8 disiplinli inceleme ekranı açılır.</p>
+          <div className="doc-kind-grid">
+            {DOC_KIND_OPTIONS.map((k) => (
+              <button key={k.id} type="button" className={kind === k.id ? 'active' : ''} onClick={() => setKind(k.id)}>
+                {k.label}
+              </button>
+            ))}
+          </div>
           <form className="row" onSubmit={blank}>
-            <input placeholder="Dilekçe başlığı" value={title} onChange={(e) => setTitle(e.target.value)} required />
-            <button type="submit">Oluştur</button>
+            <input placeholder={DOC_KIND_OPTIONS.find((k) => k.id === kind)?.label ?? 'Başlık'} value={title} onChange={(e) => setTitle(e.target.value)} />
+            <button type="submit" className="primary">
+              Oluştur
+            </button>
           </form>
         </Card>
         <ErrorText error={err ?? petitions.error} />

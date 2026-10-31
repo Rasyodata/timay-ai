@@ -24,7 +24,7 @@ export type View =
   | { name: 'dashboard' }
   | { name: 'cases' }
   | { name: 'case'; id: number; tab?: string }
-  | { name: 'petition'; id: number }
+  | { name: 'petition'; id: number; review?: boolean }
   | { name: 'opposing'; id: number }
   | { name: 'templates' }
   | { name: 'agenda' }
@@ -266,7 +266,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
       content = <CaseView id={view.id} user={user} go={go} initialTab={view.tab} />;
       break;
     case 'petition':
-      content = <PetitionView id={view.id} user={user} back={(caseId) => go({ name: 'case', id: caseId, tab: 'dilekceler' })} />;
+      content = <PetitionView key={view.id} id={view.id} user={user} autoReview={view.review} back={(caseId) => go({ name: 'case', id: caseId, tab: 'dilekceler' })} />;
       break;
     case 'opposing':
       content = <OpposingView id={view.id} back={(caseId) => go({ name: 'case', id: caseId, tab: 'karsi' })} />;

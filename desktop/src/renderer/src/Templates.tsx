@@ -30,7 +30,7 @@ export function TemplatesView({ go }: { go: Go }) {
     setBusy(true);
     try {
       const p = await createFromTemplate(Number(caseId), templateId);
-      go({ name: 'petition', id: p.id });
+      go({ name: 'petition', id: p.id, review: true });
     } catch (e) {
       setErr((e as Error).message);
       setBusy(false);
