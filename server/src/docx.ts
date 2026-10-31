@@ -220,3 +220,26 @@ export function buildDocx(parts: DiffPart[], author: string): Buffer {
     ['word/document.xml', doc],
   ]);
 }
+
+/**
+ * UYAP Doküman Editörü (.udf) dosyasının metnini çıkarır. UDF bir ZIP arşividir;
+ * metnin tamamı content.xml içindeki <content> öğesinde CDATA olarak durur.
+ */
+export function readUdf(buf: Buffer): string {
+  let files: Map<string, Buffer>;
+  try {
+    files = readZip(buf);
+  } catch {
+    throw new ApiError(400, 'Dosya bir UYAP (.udf) belgesi değil.');
+  }
+  const xml = files.get('content.xml')?.toString('utf8');
+  if (!xml) throw new ApiError(400, 'UYAP belgesinde içerik bulunamadı.');
+  const m = xml.match(/<content>\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*<\/content>/) ?? xml.match(/<content>([\s\S]*?)<\/content>/);
+  if (!m) throw new ApiError(400, 'UYAP belgesinde metin bulunamadı.');
+  return m[1]
+    .replace(/￼/g, '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}

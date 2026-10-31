@@ -334,6 +334,22 @@ CREATE TABLE IF NOT EXISTS contract_signers (
   role TEXT NOT NULL DEFAULT '',
   signed_at TEXT NOT NULL DEFAULT ''
 );
+-- Dava dosyasına eklenen belgeler (UYAP .udf, PDF, Word, TIF, resim); metni aranabilir tutulur.
+CREATE TABLE IF NOT EXISTS case_documents (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  case_id INTEGER NOT NULL REFERENCES cases(id),
+  title TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'diger',
+  file_name TEXT NOT NULL,
+  mime_type TEXT NOT NULL DEFAULT '',
+  size INTEGER NOT NULL,
+  data BLOB NOT NULL,
+  text TEXT NOT NULL DEFAULT '',
+  ocr INTEGER NOT NULL DEFAULT 0,
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 -- Ajanda (dava defteri): avukatın kendi notları ve randevuları.
 CREATE TABLE IF NOT EXISTS agenda_items (
   id INTEGER PRIMARY KEY,

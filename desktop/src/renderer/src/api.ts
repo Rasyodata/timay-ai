@@ -469,6 +469,20 @@ export const KIND_LABEL: Record<TeyitKind, string> = {
   olgu: 'Olay',
 };
 
+export interface CaseDocument {
+  id: number;
+  case_id: number;
+  title: string;
+  kind: string;
+  file_name: string;
+  mime_type: string;
+  size: number;
+  ocr: number;
+  text_length?: number;
+  created_at: string;
+  created_by_name: string;
+}
+
 export interface OpposingSummary {
   id: number;
   title: string;

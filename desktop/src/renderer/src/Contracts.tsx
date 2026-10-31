@@ -176,12 +176,12 @@ function NewContract({ templates, onCancel, onCreated }: { templates: ContractTe
           <input value={form.value} onChange={set('value')} placeholder="ör. 250.000" inputMode="decimal" />
         </Field>
         <Field label="Sözleşme metni" wide>
-          <textarea rows={14} className="mono" value={form.body} onChange={set('body')} placeholder="Şablon seçin, metni yapıştırın ya da Word / PDF yükleyin" />
+          <textarea rows={14} className="mono" value={form.body} onChange={set('body')} placeholder="Şablon seçin, metni yapıştırın ya da dosyadan alın (Word, PDF, UYAP, TIF, resim)" />
         </Field>
         <div className="form-actions">
           <ErrorText error={err} />
           <FilePick
-            label="Word / PDF’ten al"
+            label="Dosyadan al"
             onFile={async (f) => {
               try {
                 const text = await fileToText(f);
@@ -214,9 +214,11 @@ function QuickReview({ onClose, onCreated }: { onClose: () => void; onCreated: (
     setErr(null);
     try {
       const name = title.trim() || file?.name.replace(/\.[^.]+$/, '') || 'Karşı taraf taslağı';
+      // Önce dosya okunur (resimse OCR); okunamazsa boş sözleşme açılmaz.
+      const payload: { fileBase64?: string; text?: string } = file ? await readFile(file) : { text: body };
+      if (!payload.fileBase64 && !payload.text?.trim()) throw new Error('Dosyada okunabilir yazı bulunamadı.');
       const c = await api<ContractDetail>('/contracts', { body: { title: name, kind } });
       await api(`/contracts/${c.id}/side`, { method: 'PUT', body: { side } });
-      const payload = file ? await readFile(file) : { text: body };
       await api(`/contracts/${c.id}/versions`, { body: { ...payload, source: 'karsi' } });
       onCreated(c.id);
     } catch (e) {
@@ -229,7 +231,7 @@ function QuickReview({ onClose, onCreated }: { onClose: () => void; onCreated: (
   return (
     <Card title="Karşı taraf taslağını incele" actions={<button className="ghost" onClick={onClose}>Kapat</button>}>
       <p className="muted small">
-        Karşı taraftan gelen Word ya da PDF taslağı yükleyin. Timay saniyeler içinde 0–100 arası risk puanı verir, lehte ve aleyhte maddeleri işaretler,
+        Karşı taraftan gelen taslağı yükleyin: Word, PDF, UYAP (.udf), TIF ya da fotoğraf (JPG, PNG, BMP). Fotoğraf ve taranmış belgelerdeki yazı bilgisayarınızda okunur. Timay saniyeler içinde 0–100 arası risk puanı verir, lehte ve aleyhte maddeleri işaretler,
         eksik ve mevzuata aykırı hükümleri gösterir ve kütüphanenizden düzeltme önerir.
       </p>
       <div className="form-grid cols-3">
@@ -255,7 +257,7 @@ function QuickReview({ onClose, onCreated }: { onClose: () => void; onCreated: (
         </Field>
       </div>
       <div className="upload-drop">
-        <FilePick label="Word / PDF yükle ve incele" busy={busy} onFile={(f) => start(f)} />
+        <FilePick label="Dosya yükle ve incele" busy={busy} onFile={(f) => start(f)} />
         <span className="muted small">ya da metni aşağıya yapıştırın</span>
       </div>
       <textarea rows={8} className="mono" value={body} onChange={(e) => setBody(e.target.value)} placeholder="Sözleşme metnini buraya yapıştırın" />

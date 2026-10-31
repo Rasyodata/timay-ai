@@ -15,6 +15,9 @@ import {
 } from './api';
 import type { Go } from './App';
 import { TaskList } from './Agenda';
+import { CaseDocuments } from './CaseDocs';
+import { FilePick } from './Clm';
+import { documentText } from './docread';
 import { Card, DueLabel, Empty, ErrorText, Field, formatDate, formatTL, Icon, PageHeader, StatusBadge, Tabs, today, useAsync } from './ui';
 
 export function useAreas() {
@@ -174,7 +177,7 @@ export function CasesView({ go }: { go: Go }) {
   );
 }
 
-type CaseTab = 'genel' | 'dilekceler' | 'durusmalar' | 'karsi' | 'gorevler' | 'muhasebe';
+type CaseTab = 'genel' | 'belgeler' | 'dilekceler' | 'durusmalar' | 'karsi' | 'gorevler' | 'muhasebe';
 
 export function CaseView({ id, user, go, initialTab }: { id: number; user: User; go: Go; initialTab?: string }) {
   const { data, error, setData } = useAsync(() => api<CaseDetail>(`/cases/${id}`), [id]);
@@ -198,6 +201,7 @@ export function CaseView({ id, user, go, initialTab }: { id: number; user: User;
         onChange={setTab}
         items={[
           ['genel', 'Genel bilgiler'],
+          ['belgeler', 'Belgeler'],
           ['dilekceler', 'Dilekçeler'],
           ['durusmalar', `Duruşmalar (${data.hearings.length})`],
           ['karsi', 'Karşı taraf'],
@@ -206,6 +210,7 @@ export function CaseView({ id, user, go, initialTab }: { id: number; user: User;
         ]}
       />
       {tab === 'genel' && <CaseGeneral data={data} setData={setData} areas={areas} user={user} />}
+      {tab === 'belgeler' && <CaseDocuments caseId={id} go={go} />}
       {tab === 'dilekceler' && <CasePetitions caseId={id} go={go} areas={areas} defaultArea={data.area} />}
       {tab === 'durusmalar' && <CaseHearings data={data} setData={setData} />}
       {tab === 'karsi' && <CaseOpposing caseId={id} go={go} />}
@@ -507,6 +512,22 @@ function CaseOpposing({ caseId, go }: { caseId: number; go: Go }) {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [err, setErr] = useState<string | null>(null);
+  const [reading, setReading] = useState(false);
+
+  async function fromFile(file: File) {
+    setReading(true);
+    setErr(null);
+    try {
+      const text = await documentText(file);
+      if (!text.trim()) throw new Error('Dosyada okunabilir yazı bulunamadı.');
+      setBody(text);
+      if (!title.trim()) setTitle(file.name.replace(/\.[^.]+$/, ''));
+    } catch (error) {
+      setErr((error as Error).message);
+    } finally {
+      setReading(false);
+    }
+  }
 
   async function add(e: FormEvent) {
     e.preventDefault();
@@ -542,11 +563,12 @@ function CaseOpposing({ caseId, go }: { caseId: number; go: Go }) {
             <input placeholder="ör. Davalı cevap dilekçesi" value={title} onChange={(e) => setTitle(e.target.value)} required />
           </Field>
           <Field label="Metin" wide>
-            <textarea rows={8} value={body} onChange={(e) => setBody(e.target.value)} required />
+            <textarea rows={8} value={body} onChange={(e) => setBody(e.target.value)} required placeholder="Metni yapıştırın ya da dosyadan alın" />
           </Field>
           <div className="form-actions">
             <ErrorText error={err} />
-            <button className="primary" type="submit">
+            <FilePick label="Dosyadan al (UYAP, PDF, TIF, resim)" busy={reading} onFile={fromFile} />
+            <button className="primary" type="submit" disabled={reading}>
               Ekle ve teyit et
             </button>
           </div>
