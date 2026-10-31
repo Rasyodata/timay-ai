@@ -325,6 +325,15 @@ export interface EnforcementFile {
   collected_kurus: number;
   interest_kurus: number;
   remaining_kurus: number;
+  expense_kurus: number;
+  at_office_kurus: number;
+  at_lawyer_kurus: number;
+  debtor_id_no: string;
+  debtor_address: string;
+  interest_type: 'sabit' | 'yasal';
+  pre_interest_kurus: number;
+  fee_kurus: number;
+  case_id: number | null;
   actions?: { id: number; date: string; action: string; amount_kurus: number; note: string; created_by_name: string }[];
 }
 

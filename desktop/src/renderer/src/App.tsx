@@ -41,7 +41,7 @@ export type View =
   | { name: 'search'; q?: string }
   | { name: 'finance' }
   | { name: 'enforcement' }
-  | { name: 'enforcement-file'; id: number }
+  | { name: 'enforcement-file'; id: number; tab?: string }
   | { name: 'consultancy' }
   | { name: 'estates' }
   | { name: 'deadlines'; tab?: string }
@@ -328,7 +328,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
       content = <EnforcementView go={go} />;
       break;
     case 'enforcement-file':
-      content = <EnforcementFileView id={view.id} go={go} />;
+      content = <EnforcementFileView key={view.id} id={view.id} go={go} initialTab={view.tab} />;
       break;
     case 'consultancy':
       content = <ConsultancyView go={go} />;

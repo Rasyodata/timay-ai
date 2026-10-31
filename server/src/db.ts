@@ -445,6 +445,18 @@ CREATE TABLE IF NOT EXISTS notes (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- İcra dosyasında yapılan mal varlığı / adres sorguları (UYAP'ta yapılır, sonucu burada tutulur).
+CREATE TABLE IF NOT EXISTS enforcement_queries (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  file_id INTEGER NOT NULL REFERENCES enforcement_files(id),
+  kind TEXT NOT NULL,
+  date TEXT NOT NULL,
+  found INTEGER NOT NULL DEFAULT 0,
+  result TEXT NOT NULL DEFAULT '',
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 -- Ajanda (dava defteri): avukatın kendi notları ve randevuları.
 CREATE TABLE IF NOT EXISTS agenda_items (
   id INTEGER PRIMARY KEY,
@@ -503,6 +515,15 @@ function migrate(db: DB) {
   const obligationColumns = (db.prepare('PRAGMA table_info(contract_obligations)').all() as { name: string }[]).map((c) => c.name);
   if (!obligationColumns.includes('direction')) db.exec("ALTER TABLE contract_obligations ADD COLUMN direction TEXT NOT NULL DEFAULT ''");
   if (!obligationColumns.includes('source')) db.exec("ALTER TABLE contract_obligations ADD COLUMN source TEXT NOT NULL DEFAULT ''");
+  const efColumns = (db.prepare('PRAGMA table_info(enforcement_files)').all() as { name: string }[]).map((c) => c.name);
+  if (!efColumns.includes('debtor_id_no')) {
+    // İcra föyü: borçlu kimliği ve adresi, faiz türü, takip öncesi faiz, vekâlet ücreti.
+    db.exec("ALTER TABLE enforcement_files ADD COLUMN debtor_id_no TEXT NOT NULL DEFAULT ''");
+    db.exec("ALTER TABLE enforcement_files ADD COLUMN debtor_address TEXT NOT NULL DEFAULT ''");
+    db.exec("ALTER TABLE enforcement_files ADD COLUMN interest_type TEXT NOT NULL DEFAULT 'sabit'");
+    db.exec('ALTER TABLE enforcement_files ADD COLUMN pre_interest_kurus INTEGER NOT NULL DEFAULT 0');
+    db.exec('ALTER TABLE enforcement_files ADD COLUMN fee_kurus INTEGER NOT NULL DEFAULT 0');
+  }
   const taskColumns = (db.prepare('PRAGMA table_info(tasks)').all() as { name: string }[]).map((c) => c.name);
   if (!taskColumns.includes('status')) {
     // Görev panosu: yapilacak → devam → inceleme → tamam. Tamamlama kontrol edene aittir.
