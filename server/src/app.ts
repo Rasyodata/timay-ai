@@ -12,11 +12,12 @@ import * as tasks from './tasks.ts';
 import { getTemplate, listAreas } from './templates.ts';
 import { checkCitations } from './citations.ts';
 import * as deadlines from './deadlines.ts';
-import { readDocx } from './docx.ts';
+import { readDocx, readUdf } from './docx.ts';
 import type { DB } from './db.ts';
 import { archiveStats, getDecision, searchArchive, searchDecisions, upsertDecision } from './decisions.ts';
 import { ApiError } from './errors.ts';
 import * as estates from './estates.ts';
+import * as casedocs from './casedocs.ts';
 import * as opposing from './opposing.ts';
 import * as petitions from './petitions.ts';
 import type { DeepChecker } from './teyit.ts';
@@ -70,6 +71,11 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; f
   app.get('/api/hearings', authed((_req, user) => cases.listHearings(db, user)));
   app.get('/api/cases/:id/opposing', authed((req, user) => opposing.listOpposing(db, user, id(req))));
   app.post('/api/cases/:id/opposing', authed((req, user) => opposing.createOpposing(db, user, id(req), req.body)));
+  app.get('/api/cases/:id/documents', authed((req, user) => casedocs.listCaseDocuments(db, user, id(req))));
+  app.post('/api/cases/:id/documents', authed((req, user) => casedocs.addCaseDocument(db, user, id(req), req.body ?? {})));
+  app.get('/api/case-documents/:id', authed((req, user) => casedocs.getCaseDocument(db, user, id(req), req.query.file === '1')));
+  app.put('/api/case-documents/:id', authed((req, user) => casedocs.updateCaseDocument(db, user, id(req), req.body ?? {})));
+  app.delete('/api/case-documents/:id', authed((req, user) => casedocs.deleteCaseDocument(db, user, id(req))));
   app.get('/api/opposing/:id', authed((req, user) => opposing.getOpposing(db, user, id(req))));
   app.post('/api/opposing/:id/teyit/deep', authed((req, user) => opposing.deepCheckOpposing(db, user, id(req), checker)));
 
@@ -123,7 +129,9 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; f
   app.post(
     '/api/documents/extract',
     authed((req) => {
-      const doc = readDocx(Buffer.from(String(req.body?.fileBase64 ?? ''), 'base64'));
+      const buf = Buffer.from(String(req.body?.fileBase64 ?? ''), 'base64');
+      if (/\.udf$/i.test(String(req.body?.fileName ?? ''))) return { text: readUdf(buf), trackedChanges: 0 };
+      const doc = readDocx(buf);
       return { text: doc.accepted, trackedChanges: doc.trackedChanges };
     }),
   );

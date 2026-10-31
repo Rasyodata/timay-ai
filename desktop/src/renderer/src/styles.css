@@ -2752,3 +2752,94 @@ td label.ack {
   color: var(--accent);
 }
 
+
+/* ---------- Dava belgeleri ---------- */
+.doc-list li {
+  gap: 12px;
+}
+
+.doc-list li.selected {
+  background: var(--accent-soft);
+}
+
+.file-badge {
+  flex-shrink: 0;
+  width: 44px;
+  padding: 6px 0;
+  border-radius: 6px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--chip);
+  color: var(--text-2);
+}
+
+.file-badge.f-pdf {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
+.file-badge.f-udf {
+  background: var(--violet-soft);
+  color: var(--violet);
+}
+
+.file-badge.f-docx {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.file-badge.f-tif,
+.file-badge.f-tiff,
+.file-badge.f-jpg,
+.file-badge.f-jpeg,
+.file-badge.f-png,
+.file-badge.f-bmp {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.title-input {
+  font-weight: 650;
+  font-size: 15px;
+  border-color: transparent;
+  background: transparent;
+  padding: 4px 6px;
+  width: 100%;
+}
+
+.title-input:hover,
+.title-input:focus {
+  border-color: var(--border-strong);
+}
+
+.doc-viewer .doc-meta {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.doc-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 320px;
+  margin: 0 auto 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.doc-actions .danger {
+  margin-right: auto;
+  color: var(--bad);
+}
+
+.doc-send {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}

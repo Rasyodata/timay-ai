@@ -12,53 +12,20 @@ import {
   type Signing,
   type User,
 } from './api';
+import { DOC_ACCEPT, documentText, readDocument, READ_PROGRESS } from './docread';
 import { Card, Empty, ErrorText, Field, formatDate, Icon, useAsync } from './ui';
 
 // ---------------------------------------------------------------------------
-// Dosya okuma: Word belgesi sunucuda, PDF bu bilgisayarda okunur
+// Dosya okuma: Word ve UYAP belgesi sunucuda, PDF / TIF / resim bu bilgisayarda (OCR) okunur
 // ---------------------------------------------------------------------------
 
-function toBase64(buf: ArrayBuffer) {
-  const bytes = new Uint8Array(buf);
-  let bin = '';
-  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(bin);
-}
-
-async function pdfText(buf: ArrayBuffer) {
-  const pdfjs = await import('pdfjs-dist');
-  const worker = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
-  pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
-  const doc = await pdfjs.getDocument({ data: new Uint8Array(buf) }).promise;
-  const pages: string[] = [];
-  for (let p = 1; p <= doc.numPages; p++) {
-    const content = await (await doc.getPage(p)).getTextContent();
-    pages.push(content.items.map((it) => ('str' in it ? it.str + (it.hasEOL ? '\n' : '') : '')).join(''));
-  }
-  return pages.join('\n').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
-}
-
-/** Word (.docx), PDF ya da metin dosyasını okunabilir hale getirir. */
-export async function readContractFile(file: File): Promise<{ fileName: string; fileBase64?: string; text?: string }> {
-  const name = file.name.toLowerCase();
-  const buf = await file.arrayBuffer();
-  if (name.endsWith('.docx')) return { fileName: file.name, fileBase64: toBase64(buf) };
-  if (name.endsWith('.pdf')) {
-    const text = await pdfText(buf);
-    if (!text) throw new Error('PDF’te okunabilir metin yok (taranmış belge). Taranmış belgeler yapay zekâ bağlantısıyla okunacak.');
-    return { fileName: file.name, text };
-  }
-  if (name.endsWith('.txt')) return { fileName: file.name, text: new TextDecoder().decode(buf) };
-  if (name.endsWith('.doc')) throw new Error('Eski .doc biçimi okunamıyor; Word’de “Farklı kaydet → .docx” ile kaydedip yükleyin.');
-  throw new Error('Yalnızca Word (.docx), PDF ve metin (.txt) dosyaları yüklenebilir.');
+/** Sözleşme dosyasını okur; Word dosyası değişiklikleri izle bilgisiyle sunucuya gider. */
+export function readContractFile(file: File) {
+  return readDocument(file, undefined, { keepDocx: true });
 }
 
 /** Dosyadan yalnızca metni çıkarır (yeni sözleşme oluştururken). */
-export async function fileToText(file: File) {
-  const r = await readContractFile(file);
-  if (r.text !== undefined) return r.text;
-  return (await api<{ text: string }>('/documents/extract', { body: { fileBase64: r.fileBase64 } })).text;
-}
+export const fileToText = (file: File) => documentText(file);
 
 function downloadBase64(fileName: string, base64: string, type: string) {
   const bin = atob(base64);
@@ -72,22 +39,47 @@ function downloadBase64(fileName: string, base64: string, type: string) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-export function FilePick({ label, accept = '.docx,.pdf,.txt', onFile, busy }: { label: string; accept?: string; onFile: (f: File) => void; busy?: boolean }) {
+export function FilePick({
+  label,
+  accept = DOC_ACCEPT,
+  onFile,
+  busy,
+  multiple,
+  primary,
+}: {
+  label: string;
+  accept?: string;
+  onFile: (f: File) => void;
+  busy?: boolean;
+  multiple?: boolean;
+  primary?: boolean;
+}) {
   const ref = useRef<HTMLInputElement>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  useEffect(() => {
+    if (!busy) {
+      setStatus(null);
+      return;
+    }
+    const on = (e: Event) => setStatus((e as CustomEvent<string>).detail);
+    window.addEventListener(READ_PROGRESS, on);
+    return () => window.removeEventListener(READ_PROGRESS, on);
+  }, [busy]);
   return (
     <>
-      <button type="button" onClick={() => ref.current?.click()} disabled={busy}>
-        <Icon name="upload" /> {busy ? 'Okunuyor…' : label}
+      <button type="button" className={primary ? 'primary' : ''} onClick={() => ref.current?.click()} disabled={busy}>
+        <Icon name="upload" /> {busy ? (status ?? 'Okunuyor…') : label}
       </button>
       <input
         ref={ref}
         type="file"
         accept={accept}
+        multiple={multiple}
         hidden
         onChange={(e) => {
-          const f = e.target.files?.[0];
+          const files = Array.from(e.target.files ?? []);
           e.target.value = '';
-          if (f) onFile(f);
+          files.forEach((f) => onFile(f));
         }}
       />
     </>
@@ -192,7 +184,7 @@ export function ArmorTab({ data, onChanged }: { data: ContractDetail; onChanged:
         <Empty icon="contract">İnceleme için sözleşme metnini girin ya da karşı tarafın taslağını yükleyin.</Empty>
         <div className="center-actions">
           <FilePick
-            label="Word / PDF yükle"
+            label="Belge yükle (Word, PDF, UYAP, TIF, resim)"
             busy={busy}
             onFile={(f) =>
               run(async () => {
