@@ -59,8 +59,10 @@ export function searchArchive(db: DB, input: { q?: string; chamber?: string; yea
       params.push(q, q);
     } else {
       for (const word of q.split(/\s+/).filter(Boolean)) {
-        where.push('(text LIKE ? OR chamber LIKE ?)');
-        params.push(`%${word}%`, `%${word}%`);
+        // SQLite LIKE yalnız ASCII harflerde büyük/küçük harfe duyarsızdır; "işe" ile "İşe" Türkçe kurala göre eşlenir.
+        where.push('(tr_lower(text) LIKE ? OR tr_lower(chamber) LIKE ?)');
+        const w = word.toLocaleLowerCase('tr');
+        params.push(`%${w}%`, `%${w}%`);
       }
     }
   }

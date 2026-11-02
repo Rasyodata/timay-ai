@@ -16,6 +16,7 @@ import * as notes from './notes.ts';
 import * as tebligat from './tebligat.ts';
 import * as timesheet from './timesheet.ts';
 import { analyzeFacts } from './emsal.ts';
+import * as mcp from './mcp.ts';
 import * as backup from './backup.ts';
 import * as ai from './ai.ts';
 import type { AiModel } from './claude.ts';
@@ -56,7 +57,7 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; a
   // Bearer token ile yapıldığı için tüm kökenlere izin vermek güvenlidir.
   app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Headers', 'content-type, authorization');
+    res.header('Access-Control-Allow-Headers', 'content-type, authorization, accept, mcp-protocol-version, mcp-session-id');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
     if (req.method === 'OPTIONS') {
       res.sendStatus(204);
@@ -356,6 +357,17 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; a
   app.post('/api/time/:id/stop', authed((req, user) => timesheet.stopTimer(db, user, id(req))));
   app.put('/api/time/:id', authed((req, user) => timesheet.updateEntry(db, user, id(req), req.body ?? {})));
   app.delete('/api/time/:id', authed((req, user) => timesheet.deleteEntry(db, user, id(req))));
+
+  // Claude bağlantısı (MCP)
+  app.get('/api/mcp-keys', authed((_req, user) => mcp.listKeys(db, user)));
+  app.post('/api/mcp-keys', authed((req, user) => mcp.createKey(db, user, req.body ?? {})));
+  app.delete('/api/mcp-keys/:id', authed((req, user) => mcp.revokeKey(db, user, id(req))));
+  app.post('/mcp/:key', mcp.mcpHandler(db, fetchImpl));
+  const noMcpMethod = (_req: Request, res: Response) => {
+    res.status(405).json({ jsonrpc: '2.0', error: { code: -32000, message: 'Yalnızca POST desteklenir.' }, id: null });
+  };
+  app.get('/mcp/:key', noMcpMethod);
+  app.delete('/mcp/:key', noMcpMethod);
 
   // Olaydan emsal bulma
   app.post('/api/emsal', authed((req, user) => analyzeFacts(db, user, req.body ?? {}, aiModel)));

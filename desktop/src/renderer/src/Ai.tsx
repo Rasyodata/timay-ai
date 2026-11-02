@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api } from './api';
 import type { Go } from './App';
+import { ClaudeConnect } from './ClaudeConnect';
 import { Card, Empty, ErrorText, Field, formatDate, Icon, PageHeader, Stat, Tabs, useAsync } from './ui';
 
 /*
@@ -106,7 +107,7 @@ function CopyButton({ text }: { text: string }) {
 
 /* ---------- Ana sayfa ---------- */
 
-type AiTab = 'asistan' | 'infaz' | 'ictihat';
+type AiTab = 'asistan' | 'infaz' | 'ictihat' | 'claude';
 
 export function AiView({ go, chatId, tab: initialTab }: { go: Go; chatId?: number; tab?: string }) {
   const status = useAiStatus();
@@ -122,11 +123,13 @@ export function AiView({ go, chatId, tab: initialTab }: { go: Go; chatId?: numbe
           ['asistan', 'Asistan'],
           ['ictihat', 'İçtihat değerlendir'],
           ['infaz', 'İnfaz hesabı'],
+          ['claude', 'Claude hesabıma bağla'],
         ]}
       />
       {tab === 'asistan' && <Assistant go={go} initialId={chatId} status={status} />}
       {tab === 'ictihat' && <DecisionTab />}
       {tab === 'infaz' && <InfazTab />}
+      {tab === 'claude' && <ClaudeConnect />}
     </div>
   );
 }
