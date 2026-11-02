@@ -600,6 +600,18 @@ CREATE TABLE IF NOT EXISTS time_entries (
   finance_entry_id INTEGER REFERENCES finance_entries(id) ON DELETE SET NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- Claude bağlantısı (MCP): avukatın kendi Claude hesabından büronun arşivine erişim anahtarları.
+CREATE TABLE IF NOT EXISTS mcp_keys (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  label TEXT NOT NULL DEFAULT '',
+  token_hash TEXT NOT NULL UNIQUE,
+  allow_cases INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_used_at TEXT NOT NULL DEFAULT '',
+  revoked_at TEXT NOT NULL DEFAULT ''
+);
 `;
 
 /** Eski veritabanlarına sonradan eklenen sütunlar. */
@@ -669,6 +681,7 @@ export function openDb(file = ':memory:'): DB {
   const db = new Database(file);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
+  db.function('tr_lower', { deterministic: true }, (v: unknown) => (typeof v === 'string' ? v.toLocaleLowerCase('tr') : v));
   db.exec(schema);
   migrate(db);
   return db;
