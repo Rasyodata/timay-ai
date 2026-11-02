@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "node scripts/copy-ocr.mjs && electron-vite dev",
     "build": "node scripts/copy-ocr.mjs && electron-vite build",
+    "build:web": "node scripts/copy-ocr.mjs && vite build --config vite.web.config.ts",
     "typecheck": "tsc --noEmit",
     "dist:win": "node scripts/copy-ocr.mjs && electron-vite build && electron-builder --win --publish never"
   },

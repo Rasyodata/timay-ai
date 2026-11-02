@@ -1,4 +1,6 @@
+import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createApp } from './app.ts';
 import { startDailyServerBackups } from './backup.ts';
 import { createClaudeChecker, createClaudeModel } from './claude.ts';
@@ -13,8 +15,13 @@ const ai = createClaudeModel();
 const backupDir = process.env.BACKUP_DIR ?? join(dirname(dbFile), 'yedek');
 startDailyServerBackups(db, backupDir);
 
-createApp(db, { deepChecker, ai, backupDir }).listen(port, () => {
+// Tarayıcı sürümü derlendiyse /uygulama/ adresinden sunulur.
+const webGuess = join(dirname(fileURLToPath(import.meta.url)), '../../desktop/out-web');
+const webDir = process.env.WEB_DIR ?? (existsSync(join(webGuess, 'index.html')) ? webGuess : null);
+
+createApp(db, { deepChecker, ai, backupDir, webDir }).listen(port, () => {
   console.log(`Timay sunucusu http://localhost:${port} adresinde çalışıyor`);
   console.log(`Günlük veritabanı yedeği: ${backupDir}`);
+  if (webDir) console.log(`Tarayıcı sürümü: http://localhost:${port}/uygulama/`);
   if (!deepChecker) console.log('ANTHROPIC_API_KEY tanımlı değil: derin teyit ve yapay zekâ (Claude) kapalı.');
 });

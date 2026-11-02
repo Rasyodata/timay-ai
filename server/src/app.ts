@@ -1,4 +1,5 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
+import { join } from 'node:path';
 import * as agendaMod from './agenda.ts';
 import * as auth from './auth.ts';
 import * as cases from './cases.ts';
@@ -47,7 +48,7 @@ import * as yargitay from './yargitay.ts';
 
 type Handler = (req: Request, user: auth.User) => unknown;
 
-export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; ai?: AiModel | null; fetch?: yargitay.Fetch; backupDir?: string | null } = {}) {
+export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; ai?: AiModel | null; fetch?: yargitay.Fetch; backupDir?: string | null; webDir?: string | null } = {}) {
   const checker = options.deepChecker ?? null;
   const aiModel = options.ai ?? null;
   const fetchImpl = options.fetch ?? (fetch as unknown as yargitay.Fetch);
@@ -391,6 +392,15 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; a
   }));
   app.post('/api/yargitay/import', authed((req, user) => yargitay.importDecision(db, fetchImpl, user, req.body ?? {})));
   app.post('/api/citations/check', authed((req) => checkCitations(db, String(req.body.body ?? ''))));
+
+  // Tarayıcı sürümü (desktop/out-web): https://<sunucu>/uygulama/ — timayplatform.com içine bu adres konur.
+  const webDir = options.webDir ?? null;
+  if (webDir) {
+    app.get('/uygulama', (req, res, next) => (req.originalUrl === '/uygulama' ? res.redirect('/uygulama/') : next()));
+    app.use('/uygulama', express.static(webDir, { index: 'index.html', maxAge: '1h' }));
+    app.get('/uygulama/{*rest}', (_req, res) => res.sendFile(join(webDir, 'index.html')));
+    app.get('/', (_req, res) => res.redirect('/uygulama/'));
+  }
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof ApiError) {

@@ -5,3 +5,4 @@ dist/
 *.db-*
 .env
 desktop/src/renderer/public/ocr/
+out-web/

@@ -2,6 +2,8 @@
 
 interface ImportMetaEnv {
   readonly VITE_TIMAY_SERVER_URL?: string;
+  /** Tarayıcı sürümünde derlerken '1'. */
+  readonly VITE_TIMAY_WEB?: string;
 }
 
 interface Window {
