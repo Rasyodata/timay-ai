@@ -23,6 +23,7 @@ import { FinanceView } from './Finance';
 import { DecisionsView } from './Archive';
 import { TeamView } from './Office';
 import { applyTheme, ConnectionBanner, SettingsGate, SettingsView } from './Settings';
+import { UpdateBanner, VersionLink } from './Update';
 import { OpposingView, PetitionView } from './Petition';
 import { PowersView } from './Powers';
 import { TemplatesView } from './Templates';
@@ -428,6 +429,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
           </div>
         ))}
         <div className="spacer" />
+        <VersionLink />
         <div className="me">
           <span className="avatar">{user.name.slice(0, 1).toLocaleUpperCase('tr')}</span>
           <span className="me-text">
@@ -446,6 +448,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
       </nav>
       <main className="content">
         <ConnectionBanner onSettings={() => setGate(true)} onReconnected={() => setReloadKey((k) => k + 1)} />
+        <UpdateBanner />
         <div key={reloadKey} className="content-inner">
           {content}
         </div>

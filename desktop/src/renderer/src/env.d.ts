@@ -10,6 +10,12 @@ interface Window {
   /** Masaüstü uygulamasının ön yükleme köprüsü (tarayıcıda yoktur). */
   timay?: {
     bedesten: (path: 'searchDocuments' | 'getDocumentContent', data: unknown) => Promise<unknown>;
+    update?: {
+      version(): Promise<string>;
+      check(server: string): Promise<{ current: string; latest: string | null; size: number; date: string; available: boolean; packaged: boolean }>;
+      install(server: string): Promise<{ started: boolean; version: string }>;
+      onProgress(fn: (pct: number) => void): () => void;
+    };
     backup?: {
       defaultFolder(): Promise<string>;
       pickFolder(current?: string): Promise<string | null>;

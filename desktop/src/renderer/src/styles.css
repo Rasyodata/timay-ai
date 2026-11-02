@@ -5157,3 +5157,42 @@ button.danger:disabled {
 .emsal-group { margin-top: 14px; }
 .emsal-group h4 { margin: 0 0 6px; display: flex; gap: 8px; align-items: center; }
 .steps { padding-left: 20px; line-height: 1.7; margin: 8px 0 14px; }
+
+/* Program güncellemesi */
+.update-banner {
+  position: sticky;
+  top: 0;
+  z-index: 49;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  background: var(--accent-soft, #e8f0fe);
+  color: var(--accent, #1d4ed8);
+  border-bottom: 1px solid var(--border);
+  font-weight: 500;
+}
+.update-banner span {
+  flex: 1;
+}
+.version-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 12px 6px;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.version-link:hover {
+  color: var(--text);
+  background: var(--hover, rgba(0, 0, 0, 0.04));
+}
+.version-link .icon {
+  width: 14px;
+  height: 14px;
+}

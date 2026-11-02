@@ -19,7 +19,10 @@ startDailyServerBackups(db, backupDir);
 const webGuess = join(dirname(fileURLToPath(import.meta.url)), '../../desktop/out-web');
 const webDir = process.env.WEB_DIR ?? (existsSync(join(webGuess, 'index.html')) ? webGuess : null);
 
-createApp(db, { deepChecker, ai, backupDir, webDir }).listen(port, () => {
+// Masaüstü program güncellemeleri veritabanıyla aynı diskte (Render'da /data/guncelleme).
+const updateDir = process.env.UPDATE_DIR ?? join(dirname(dbFile), 'guncelleme');
+
+createApp(db, { deepChecker, ai, backupDir, webDir, updateDir }).listen(port, () => {
   console.log(`Timay sunucusu http://localhost:${port} adresinde çalışıyor`);
   console.log(`Günlük veritabanı yedeği: ${backupDir}`);
   if (webDir) console.log(`Tarayıcı sürümü: http://localhost:${port}/uygulama/`);

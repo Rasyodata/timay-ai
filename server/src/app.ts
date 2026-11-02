@@ -18,6 +18,7 @@ import * as tebligat from './tebligat.ts';
 import * as timesheet from './timesheet.ts';
 import { analyzeFacts } from './emsal.ts';
 import * as mcp from './mcp.ts';
+import * as update from './update.ts';
 import * as backup from './backup.ts';
 import * as ai from './ai.ts';
 import type { AiModel } from './claude.ts';
@@ -48,11 +49,18 @@ import * as yargitay from './yargitay.ts';
 
 type Handler = (req: Request, user: auth.User) => unknown;
 
-export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; ai?: AiModel | null; fetch?: yargitay.Fetch; backupDir?: string | null; webDir?: string | null } = {}) {
+export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; ai?: AiModel | null; fetch?: yargitay.Fetch; backupDir?: string | null; webDir?: string | null; updateDir?: string | null; jwks?: update.Jwks } = {}) {
   const checker = options.deepChecker ?? null;
   const aiModel = options.ai ?? null;
   const fetchImpl = options.fetch ?? (fetch as unknown as yargitay.Fetch);
   const app = express();
+  // Masaüstü program güncellemesi (yükleme gövdesi ham dosya; JSON ayrıştırıcıdan önce tanımlı).
+  if (options.updateDir) {
+    const upd = update.routes(options.updateDir, options.jwks);
+    app.get('/api/guncelleme', upd.info);
+    app.get('/api/guncelleme/indir', upd.download);
+    app.post('/api/guncelleme/yukle', upd.upload);
+  }
   app.use(express.json({ limit: '80mb' }));
   // Masaüstü uygulaması file:// kökeninden istek atar; kimlik doğrulama çerezle değil
   // Bearer token ile yapıldığı için tüm kökenlere izin vermek güvenlidir.

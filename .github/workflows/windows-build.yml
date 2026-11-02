@@ -31,6 +31,10 @@ jobs:
   windows:
     needs: test
     runs-on: windows-latest
+    permissions:
+      contents: read
+      # Sunucuya güncelleme yüklerken kimlik için (gizli anahtar gerekmez).
+      id-token: write
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -38,6 +42,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Her derlemenin sürümü artar (0.2.<çalıştırma no>); programdaki "Güncelle" buna bakar.
+      - run: npm pkg set version=0.2.${{ github.run_number }} -w desktop
       - run: npm run dist:win -w desktop
         env:
           VITE_TIMAY_SERVER_URL: ${{ vars.TIMAY_SERVER_URL }}
@@ -46,3 +52,28 @@ jobs:
           name: Timay-Windows-Kurulum
           path: desktop/dist/*.exe
           if-no-files-found: error
+      # main dalındaki her derleme Timay sunucusuna yüklenir; programlar "Güncelle" ile alır.
+      - name: Güncellemeyi sunucuya yükle
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          SERVER: ${{ vars.TIMAY_SERVER_URL || 'https://timay-sunucu.onrender.com' }}
+          VERSION: 0.2.${{ github.run_number }}
+        run: |
+          FILE=$(ls desktop/dist/*.exe | head -1)
+          # Sunucu bu sürümle aynı anda yeniden yayına alınıyor olabilir: hazır olmasını bekle.
+          for i in $(seq 1 20); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$SERVER/api/guncelleme" || true)
+            [ "$code" = "200" ] && break
+            echo "Sunucu hazır değil ($code), bekleniyor..."; sleep 30
+          done
+          TOKEN=$(curl -sf -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=timay-sunucu" | node -pe 'JSON.parse(require("fs").readFileSync(0)).value')
+          for i in 1 2 3; do
+            if curl -sf --max-time 900 -X POST "$SERVER/api/guncelleme/yukle" \
+                 -H "Authorization: Bearer $TOKEN" -H "x-timay-version: $VERSION" \
+                 -H "Content-Type: application/octet-stream" --data-binary "@$FILE"; then
+              echo; echo "Yüklendi: $VERSION"; exit 0
+            fi
+            echo "Yükleme denemesi $i başarısız"; sleep 20
+          done
+          exit 1
