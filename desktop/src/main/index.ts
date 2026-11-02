@@ -10,7 +10,7 @@ function createWindow() {
     height: 820,
     minWidth: 960,
     minHeight: 640,
-    title: 'Timay Platform',
+    title: 'Timay Platform Hukuk Yazılımı',
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
