@@ -253,6 +253,21 @@ export function risks(db: DB, user: User): Risk[] {
     });
   }
 
+  for (const t of all<{ subject: string; served_date: string; case_title: string | null }>(
+    `SELECT t.subject, t.served_date, k.title AS case_title FROM tebligatlar t LEFT JOIN cases k ON k.id = t.case_id
+     WHERE t.office_id = ? AND t.deadline_id IS NULL AND t.rule_id != '-' AND t.served_date >= ?`,
+    o,
+    addDays(-60),
+  )) {
+    out.push({
+      level: t.served_date <= addDays(-3) ? 'yuksek' : 'orta',
+      area: 'Tebligat',
+      title: `Süresi takibe alınmamış tebligat: ${t.subject}`,
+      detail: [t.case_title, `tebliğ ${t.served_date.split('-').reverse().join('.')}`, 'Doğan süreyi takibe alın.'].filter(Boolean).join(' · '),
+      link: { view: 'tebligat' },
+    });
+  }
+
   for (const f of all<{ id: number; debtor: string; last: string }>(
     `SELECT f.id, f.debtor, COALESCE((SELECT MAX(date) FROM enforcement_actions a WHERE a.file_id = f.id), f.start_date) AS last
      FROM enforcement_files f WHERE f.office_id = ? AND f.status NOT IN ('tahsil', 'kapandi')`,

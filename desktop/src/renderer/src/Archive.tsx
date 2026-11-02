@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { LawChanges } from './Mevzuat';
 import type { Go } from './App';
-import { api, type ArchiveDecision, type OnlineDecision, type User } from './api';
+import { api, type ArchiveDecision, type CaseSummary, type OnlineDecision, type User } from './api';
 import { InsightsPanel } from './Insights';
 import { Card, Empty, ErrorText, Field, formatDate, Icon, PageHeader, Stat, Tabs, useAsync } from './ui';
 import { decisionTitle, importYargitay, searchYargitay } from './yargitay';
@@ -16,7 +16,7 @@ const CHAMBERS = [
 const title = decisionTitle;
 
 export function DecisionsView({ user, go }: { user: User; go: Go }) {
-  const [tab, setTab] = useState<'arsiv' | 'yargitay' | 'ekle' | 'mevzuat'>('arsiv');
+  const [tab, setTab] = useState<'arsiv' | 'emsal' | 'yargitay' | 'ekle' | 'mevzuat'>('arsiv');
   const stats = useAsync(() => api<{ total: number; chambers: { chamber: string; n: number }[] }>('/archive/stats'), []);
   const [openId, setOpenId] = useState<number | null>(null);
 
@@ -37,6 +37,7 @@ export function DecisionsView({ user, go }: { user: User; go: Go }) {
         onChange={setTab}
         items={[
           ['arsiv', 'Arşivde ara'],
+          ['emsal', 'Olayı anlat, emsal bul'],
           ['yargitay', "Yargıtay'da ara ve arşive ekle"],
           ['mevzuat', 'Mevzuat takibi'],
           ...(user.role === 'avukat' ? ([['ekle', 'Elle karar ekle']] as ['ekle', string][]) : []),
@@ -45,6 +46,15 @@ export function DecisionsView({ user, go }: { user: User; go: Go }) {
       <div className={tab === 'mevzuat' ? '' : 'grid-main-side wide-side'}>
         <div>
           {tab === 'arsiv' && <ArchiveSearch onOpen={setOpenId} />}
+          {tab === 'emsal' && (
+            <EmsalFinder
+              onOpen={setOpenId}
+              onImported={(id) => {
+                setOpenId(id);
+                stats.reload();
+              }}
+            />
+          )}
           {tab === 'mevzuat' && <LawChanges go={go} />}
           {tab === 'yargitay' && (
             <OnlineSearch
@@ -137,6 +147,185 @@ function ArchiveSearch({ onOpen }: { onOpen: (id: number) => void }) {
               </li>
             ))}
           </ul>
+        </>
+      )}
+    </Card>
+  );
+}
+
+interface EmsalResult {
+  concepts: { id: string; label: string; query: string; basis: string; chamber: string; hits: string[] }[];
+  ai: { label: string; query: string; basis: string }[] | null;
+  aiAvailable: boolean;
+  aiError: string;
+  queries: { query: string; label: string; chamber: string }[];
+  articles: string[];
+  keywords: string[];
+  archive: (ArchiveDecision & { matched: string })[];
+}
+
+/** Olay anlatımından ya da dilekçeden hukuki kavramları çıkarır, arşivde ve Yargıtay'da emsal arar. */
+function EmsalFinder({ onOpen, onImported }: { onOpen: (id: number) => void; onImported: (id: number) => void }) {
+  const cases = useAsync(() => api<CaseSummary[]>('/cases'), []);
+  const ai = useAsync(() => api<{ enabled: boolean }>('/ai/status'), []);
+  const [text, setText] = useState('');
+  const [caseId, setCaseId] = useState('');
+  const [useAi, setUseAi] = useState(true);
+  const [result, setResult] = useState<EmsalResult | null>(null);
+  const [online, setOnline] = useState<{ query: string; label: string; items: OnlineDecision[]; total: number; error?: string }[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function run(e: FormEvent) {
+    e.preventDefault();
+    setBusy('analyze');
+    setErr(null);
+    setOnline([]);
+    try {
+      const r = await api<EmsalResult>('/emsal', { body: { text, caseId: caseId ? Number(caseId) : null, useAi: useAi && Boolean(ai.data?.enabled) } });
+      setResult(r);
+      setBusy('online');
+      // Her hukuki mesele için resmî karar veritabanında ayrı arama.
+      const groups = await Promise.all(
+        r.queries.slice(0, 4).map(async (q) => {
+          try {
+            const res = await searchYargitay({ q: q.query, chamber: q.chamber });
+            return { ...q, items: res.items.slice(0, 5), total: res.total };
+          } catch (ex) {
+            return { ...q, items: [], total: 0, error: (ex as Error).message };
+          }
+        }),
+      );
+      setOnline(groups);
+    } catch (ex) {
+      setErr((ex as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function importDoc(d: OnlineDecision) {
+    setBusy(d.documentId);
+    try {
+      const saved = await importYargitay(d);
+      setOnline((gs) => gs.map((g) => ({ ...g, items: g.items.map((x) => (x.documentId === d.documentId ? { ...x, archiveId: saved.id } : x)) })));
+      onImported(saved.id);
+    } catch (ex) {
+      setErr((ex as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <Card title="Olayı anlat, emsal bul">
+      <p className="muted small">
+        Olayı kendi cümlelerinizle yazın ya da dilekçeyi yapıştırın. Timay metindeki hukuki meseleleri bulur (ör. “işten çıkarıldım” → işe iade, geçerli neden), her mesele için
+        Yargıtay’da arar ve arşivinizdeki uygun kararları getirir.
+      </p>
+      <form onSubmit={run}>
+        <textarea rows={7} value={text} onChange={(e) => setText(e.target.value)} placeholder="ör. Müvekkil 8 yıldır çalıştığı fabrikadan sebep gösterilmeden çıkarıldı, kıdem tazminatı ve fazla mesai ücreti ödenmedi." />
+        <div className="toolbar">
+          <select value={caseId} onChange={(e) => setCaseId(e.target.value)} title="Metin boşsa dosyanın olayları kullanılır" style={{ minWidth: 240 }}>
+            <option value="">Ya da dava dosyasından al…</option>
+            {cases.data?.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.title}
+              </option>
+            ))}
+          </select>
+          {ai.data?.enabled && (
+            <label className="check-line">
+              <input type="checkbox" checked={useAi} onChange={(e) => setUseAi(e.target.checked)} /> Yapay zekâ ile meseleleri derinleştir
+            </label>
+          )}
+          <button className="primary" type="submit" disabled={busy !== null || (!text.trim() && !caseId)}>
+            {busy === 'analyze' ? 'Meseleler çıkarılıyor…' : busy === 'online' ? 'Yargıtay’da aranıyor…' : 'Emsal bul'}
+          </button>
+        </div>
+      </form>
+      <ErrorText error={err} />
+      {result && (
+        <>
+          {result.aiError && <p className="warning small">{result.aiError}</p>}
+          <div className="emsal-concepts">
+            {(result.ai ?? []).map((a) => (
+              <span key={`ai-${a.query}`} className="emsal-concept" title="Yapay zekâ önerisi">
+                <strong>
+                  <Icon name="spark" /> {a.label}
+                </strong>
+                <span className="muted small">{a.basis || 'dayanak doğrulanmalı'}</span>
+              </span>
+            ))}
+            {result.concepts.map((k) => (
+              <span key={k.id} className="emsal-concept">
+                <strong>{k.label}</strong>
+                <span className="muted small">
+                  {k.basis} · metinde: “{k.hits.slice(0, 2).join('”, “')}”
+                </span>
+              </span>
+            ))}
+            {result.concepts.length === 0 && !result.ai && (
+              <span className="muted small">Bilinen bir hukuki kavram eşleşmedi; anahtar kelimelerle arandı: {result.keywords.join(', ')}</span>
+            )}
+          </div>
+          {result.articles.length > 0 && (
+            <p className="art-tags">
+              {result.articles.map((a) => (
+                <span key={a} className="tag">
+                  {a}
+                </span>
+              ))}
+            </p>
+          )}
+          {result.archive.length > 0 && (
+            <div className="emsal-group">
+              <h4>
+                <Icon name="library" /> Arşivinizdeki uygun kararlar
+              </h4>
+              <ul className="items decision-list">
+                {result.archive.map((d) => (
+                  <li key={d.id} className="clickable" onClick={() => onOpen(d.id)}>
+                    {d.relevance != null && <span className={`rel-pill ${d.relevance >= 75 ? 'hi' : d.relevance >= 45 ? 'mid' : 'lo'}`}>%{d.relevance}</span>}
+                    <span className="item-text">
+                      <strong>{title(d)}</strong>
+                      <span>
+                        {d.matched} · {d.excerpt}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {online.map((g) => (
+            <div key={g.query} className="emsal-group">
+              <h4>
+                <Icon name="scale" /> {g.label} <span className="muted small">“{g.query}” · {g.total.toLocaleString('tr-TR')} karar</span>
+              </h4>
+              {g.error && <p className="error small">{g.error}</p>}
+              <ul className="items decision-list">
+                {g.items.map((d) => (
+                  <li key={d.documentId}>
+                    <span className="item-text">
+                      <strong>{title(d)}</strong>
+                      <span>{d.date && formatDate(d.date)}</span>
+                    </span>
+                    {d.archiveId ? (
+                      <button className="link" onClick={() => onImported(d.archiveId!)}>
+                        Arşivde · aç
+                      </button>
+                    ) : (
+                      <button onClick={() => importDoc(d)} disabled={busy !== null}>
+                        {busy === d.documentId ? 'Ekleniyor…' : 'Arşive ekle'}
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          <p className="muted small">Kararları dilekçede kullanmadan önce tam metnini okuyun; Teyit, dilekçedeki atıfları arşive göre denetler.</p>
         </>
       )}
     </Card>

@@ -6,6 +6,8 @@ import { CasesView, CaseView } from './Cases';
 import { ConsultancyClientView, ConsultancyView } from './Consultancy';
 import { ContractsView, ContractView } from './Contracts';
 import { NotesView } from './Notes';
+import { TebligatView } from './Tebligat';
+import { TimesheetView } from './Timesheet';
 import { ClientsView, ClientView } from './Clients';
 import { MediationFileView, MediationView } from './Mediation';
 import { BackupView, useDailyBackup } from './Backup';
@@ -41,6 +43,8 @@ export type View =
   | { name: 'contract'; id: number }
   | { name: 'contract-group'; id: number }
   | { name: 'notes' }
+  | { name: 'tebligat' }
+  | { name: 'time' }
   | { name: 'search'; q?: string }
   | { name: 'finance' }
   | { name: 'enforcement' }
@@ -227,6 +231,8 @@ const NAV: { section: string; items: { name: View['name']; label: string; icon: 
       { name: 'agenda', label: 'Ajanda', icon: 'calendar' },
       { name: 'tasks', label: 'Görevler', icon: 'check' },
       { name: 'deadlines', label: 'Süreler ve riskler', icon: 'shield' },
+      { name: 'tebligat', label: 'Tebligatlar', icon: 'inbox' },
+      { name: 'time', label: 'Zaman takibi', icon: 'clock' },
       { name: 'notes', label: 'Akıllı notlar', icon: 'pin' },
       { name: 'calculators', label: 'Hesaplayıcılar', icon: 'calc' },
     ],
@@ -327,6 +333,12 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
       break;
     case 'notes':
       content = <NotesView go={go} />;
+      break;
+    case 'tebligat':
+      content = <TebligatView go={go} />;
+      break;
+    case 'time':
+      content = <TimesheetView user={user} go={go} />;
       break;
     case 'search':
       content = <SearchView go={go} initial={view.q} />;

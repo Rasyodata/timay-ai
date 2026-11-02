@@ -120,6 +120,8 @@ const LABELS: Record<string, string> = {
   tasks: 'görev',
   legal_deadlines: 'süre',
   notes: 'not',
+  tebligatlar: 'tebligat',
+  time_entries: 'zaman kaydı',
   finance_entries: 'muhasebe kaydı',
   enforcement_files: 'icra dosyası',
   powers_of_attorney: 'vekâletname',
