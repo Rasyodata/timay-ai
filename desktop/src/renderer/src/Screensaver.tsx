@@ -115,9 +115,13 @@ export function BrandIntro() {
         </svg>
       </div>
       <h1 className="intro-title">
-        {'TIMAY PLATFORM'.split('').map((ch, k) => (
-          <span key={k} style={{ animationDelay: `${0.9 + k * 0.06}s` }}>
-            {ch === ' ' ? ' ' : ch}
+        {['TIMAY', 'PLATFORM'].map((word, w) => (
+          <span key={word} className="intro-word">
+            {word.split('').map((ch, k) => (
+              <span key={k} style={{ animationDelay: `${0.9 + (w * 6 + k) * 0.06}s` }}>
+                {ch}
+              </span>
+            ))}
           </span>
         ))}
       </h1>
