@@ -3,6 +3,17 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync,
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { basename, dirname, join } from 'node:path';
+import { applyOnFirstRun, openSaverWindows, prepareSaverMode, registerSaverIpc, saverMode } from './saver';
+
+const SAVER = saverMode();
+if (SAVER === 'quit') app.exit(0);
+if (SAVER === 'show') prepareSaverMode();
+
+const PRELOAD = join(__dirname, '../preload/index.js');
+function loadRenderer(win: BrowserWindow, query = '') {
+  if (process.env.ELECTRON_RENDERER_URL) win.loadURL(process.env.ELECTRON_RENDERER_URL + (query ? `?${query}` : ''));
+  else win.loadFile(join(__dirname, '../renderer/index.html'), query ? { search: query } : undefined);
+}
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -13,7 +24,7 @@ function createWindow() {
     title: 'Timay Platform Hukuk Yazılımı',
     autoHideMenuBar: true,
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      preload: PRELOAD,
       contextIsolation: true,
       sandbox: true,
     },
@@ -25,11 +36,7 @@ function createWindow() {
     return { action: 'deny' };
   });
 
-  if (process.env.ELECTRON_RENDERER_URL) {
-    win.loadURL(process.env.ELECTRON_RENDERER_URL);
-  } else {
-    win.loadFile(join(__dirname, '../renderer/index.html'));
-  }
+  loadRenderer(win);
 }
 
 // Yargıtay karar veritabanı (Adalet Bakanlığı) yurt dışındaki sunucuya yanıt vermediği için
@@ -213,8 +220,15 @@ ipcMain.handle('update:install', async (event, server: unknown) => {
   return { started: true, version: info.version };
 });
 
+registerSaverIpc();
+
 app.whenReady().then(() => {
+  if (SAVER === 'show') {
+    openSaverWindows(PRELOAD, loadRenderer);
+    return;
+  }
   createWindow();
+  void applyOnFirstRun();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

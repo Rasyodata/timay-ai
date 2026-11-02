@@ -4,5 +4,7 @@ import { Screensaver } from './Screensaver';
 import './styles.css';
 
 // ?reklam : yalnız tanıtım animasyonu (reklam videosu ve ekran gösterimi için), giriş gerekmez.
-const ad = new URLSearchParams(window.location.search).has('reklam');
-createRoot(document.getElementById('root')!).render(ad ? <Screensaver go={() => undefined} ad /> : <App />);
+// ?reklam&ekran : Windows ekran koruyucusu (fare/klavye dokununca kapanır).
+const q = new URLSearchParams(window.location.search);
+const ad = q.has('reklam');
+createRoot(document.getElementById('root')!).render(ad ? <Screensaver go={() => undefined} ad system={q.has('ekran')} /> : <App />);
