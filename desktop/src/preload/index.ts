@@ -13,6 +13,11 @@ contextBridge.exposeInMainWorld('timay', {
       return () => ipcRenderer.removeListener('update:progress', h);
     },
   },
+  saver: {
+    status: () => ipcRenderer.invoke('saver:system'),
+    set: (on: boolean) => ipcRenderer.invoke('saver:system:set', on),
+    lock: () => ipcRenderer.invoke('saver:lock'),
+  },
   backup: {
     defaultFolder: () => ipcRenderer.invoke('backup:defaultFolder'),
     pickFolder: (current?: string) => ipcRenderer.invoke('backup:pickFolder', current),

@@ -140,8 +140,40 @@ export function BrandIntro() {
   );
 }
 
-export function Screensaver({ go, ad = false }: { go: Go; ad?: boolean }) {
+const LOCK_KEY = 'timay-ekran-kilit';
+function lockOnClose() {
+  try {
+    return localStorage.getItem(LOCK_KEY) !== '0';
+  } catch {
+    return true;
+  }
+}
+
+export function Screensaver({ go, ad = false, system = false }: { go: Go; ad?: boolean; system?: boolean }) {
   const [open, setOpen] = useState(ad);
+  const [lock, setLock] = useState(lockOnClose);
+  const [win, setWin] = useState<{ available: boolean; enabled: boolean } | null>(null);
+
+  // Windows ekran koruyucusu olarak: dokununca kapan.
+  useEffect(() => {
+    if (!system) return;
+    const start = Date.now();
+    let first: { x: number; y: number } | null = null;
+    const quit = () => {
+      if (Date.now() - start > 1000) window.close();
+    };
+    const move = (e: MouseEvent) => {
+      if (!first) first = { x: e.screenX, y: e.screenY };
+      else if (Math.abs(e.screenX - first.x) + Math.abs(e.screenY - first.y) > 12) quit();
+    };
+    window.addEventListener('mousemove', move);
+    for (const ev of ['mousedown', 'keydown', 'wheel', 'touchstart'] as const) window.addEventListener(ev, quit);
+    document.body.style.cursor = 'none';
+  }, [system]);
+
+  useEffect(() => {
+    if (open && !ad) void window.timay?.saver?.status().then(setWin).catch(() => undefined);
+  }, [open, ad]);
   const [minutes, setMinutes] = useState(saverMinutes);
   // -1: açılış animasyonu, 0..: modül slaytları
   const [step, setStep] = useState(-1);
@@ -196,10 +228,12 @@ export function Screensaver({ go, ad = false }: { go: Go; ad?: boolean }) {
     };
   }, [open, ad]);
 
-  const close = () => {
+  const close = (lockScreen = true) => {
     if (ad) return;
     last.current = Date.now();
     setOpen(false);
+    // Kapanınca Windows kilitlenir: geri dönmek için Windows şifresi gerekir.
+    if (lockScreen && lockOnClose()) void window.timay?.saver?.lock();
   };
 
   if (!open) return null;
@@ -209,7 +243,7 @@ export function Screensaver({ go, ad = false }: { go: Go; ad?: boolean }) {
   const date = now.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   return (
-    <div className={`saver${ad ? ' saver-ad' : ''}`} onClick={close} style={{ ['--saver-c' as string]: color }}>
+    <div className={`saver${ad ? ' saver-ad' : ''}`} onClick={() => close()} style={{ ['--saver-c' as string]: color }}>
       <div className="saver-bg" aria-hidden="true">
         <span className="orb o1" />
         <span className="orb o2" />
@@ -285,7 +319,7 @@ export function Screensaver({ go, ad = false }: { go: Go; ad?: boolean }) {
                 const n = Number(e.target.value);
                 setMinutes(n);
                 setSaverMinutes(n);
-                if (!n) close();
+                if (!n) close(false);
               }}
             >
               {SAVER_OPTIONS.map((n) => (
@@ -295,6 +329,29 @@ export function Screensaver({ go, ad = false }: { go: Go; ad?: boolean }) {
               ))}
             </select>
           </label>
+          {window.timay?.saver && (
+            <label>
+              <input
+                type="checkbox"
+                checked={lock}
+                onChange={(e) => {
+                  setLock(e.target.checked);
+                  try {
+                    localStorage.setItem(LOCK_KEY, e.target.checked ? '1' : '0');
+                  } catch {
+                    /* yok say */
+                  }
+                }}
+              />{' '}
+              Kapanınca Windows şifresi sorulsun
+            </label>
+          )}
+          {win?.available && (
+            <label>
+              <input type="checkbox" checked={win.enabled} onChange={(e) => void window.timay?.saver?.set(e.target.checked).then(setWin)} />{' '}
+              Windows ekran koruyucusu
+            </label>
+          )}
         </footer>
       )}
     </div>

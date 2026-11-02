@@ -6,3 +6,4 @@ dist/
 .env
 desktop/src/renderer/public/ocr/
 out-web/
+desktop/build/*.scr

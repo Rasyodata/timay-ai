@@ -16,6 +16,11 @@ interface Window {
       install(server: string): Promise<{ started: boolean; version: string }>;
       onProgress(fn: (pct: number) => void): () => void;
     };
+    saver?: {
+      status(): Promise<{ available: boolean; enabled: boolean }>;
+      set(on: boolean): Promise<{ available: boolean; enabled: boolean }>;
+      lock(): Promise<boolean>;
+    };
     backup?: {
       defaultFolder(): Promise<string>;
       pickFolder(current?: string): Promise<string | null>;
