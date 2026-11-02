@@ -24,6 +24,7 @@ import { DecisionsView } from './Archive';
 import { TeamView } from './Office';
 import { applyTheme, ConnectionBanner, SettingsGate, SettingsView } from './Settings';
 import { UpdateBanner, VersionLink } from './Update';
+import { Screensaver, showScreensaver } from './Screensaver';
 import { OpposingView, PetitionView } from './Petition';
 import { PowersView } from './Powers';
 import { TemplatesView } from './Templates';
@@ -429,6 +430,9 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
           </div>
         ))}
         <div className="spacer" />
+        <button className="version-link" onClick={showScreensaver} title="Modülleri tanıtan ekranı aç">
+          <Icon name="spark" /> Tanıtım ekranı
+        </button>
         <VersionLink />
         <div className="me">
           <span className="avatar">{user.name.slice(0, 1).toLocaleUpperCase('tr')}</span>
@@ -453,6 +457,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
           {content}
         </div>
       </main>
+      <Screensaver go={go} />
       {gate && (
         <SettingsGate
           user={user}
