@@ -10,7 +10,7 @@ export function riskLink(r: Risk): View | null {
   const { view, id } = r.link;
   if (id !== undefined && (view === 'case' || view === 'contract' || view === 'enforcement-file')) return { name: view, id };
   if (view === 'powers') return { name: 'powers', id };
-  if (view === 'tasks' || view === 'deadlines') return { name: view };
+  if (view === 'tasks' || view === 'deadlines' || view === 'tebligat') return { name: view };
   return null;
 }
 

@@ -568,6 +568,38 @@ CREATE TABLE IF NOT EXISTS agenda_items (
   title TEXT NOT NULL,
   note TEXT NOT NULL DEFAULT ''
 );
+-- Tebligat takibi: e-tebligat (UETS), posta ve elden tebligatlar; tebliğ tarihi ve doğan süre.
+CREATE TABLE IF NOT EXISTS tebligatlar (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  case_id INTEGER REFERENCES cases(id),
+  channel TEXT NOT NULL CHECK (channel IN ('e-tebligat', 'posta', 'tk21', 'ilan')),
+  sender TEXT NOT NULL DEFAULT '',
+  subject TEXT NOT NULL,
+  received_date TEXT NOT NULL,
+  served_date TEXT NOT NULL,
+  rule_id TEXT NOT NULL DEFAULT '',
+  deadline_id INTEGER REFERENCES legal_deadlines(id) ON DELETE SET NULL,
+  note TEXT NOT NULL DEFAULT '',
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- Zaman takibi: avukatın dosyaya harcadığı süre; saat ücretiyle muhasebeye gelir olarak aktarılır.
+CREATE TABLE IF NOT EXISTS time_entries (
+  id INTEGER PRIMARY KEY,
+  office_id INTEGER NOT NULL REFERENCES offices(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  case_id INTEGER REFERENCES cases(id),
+  client TEXT NOT NULL DEFAULT '',
+  date TEXT NOT NULL,
+  minutes INTEGER NOT NULL DEFAULT 0,
+  description TEXT NOT NULL DEFAULT '',
+  rate_kurus INTEGER NOT NULL DEFAULT 0,
+  billable INTEGER NOT NULL DEFAULT 1,
+  running_since TEXT NOT NULL DEFAULT '',
+  finance_entry_id INTEGER REFERENCES finance_entries(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `;
 
 /** Eski veritabanlarına sonradan eklenen sütunlar. */

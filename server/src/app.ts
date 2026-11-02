@@ -13,6 +13,9 @@ import * as mevzuat from './mevzuat.ts';
 import { buildUdf, plainDocx } from './docx.ts';
 import { extractText, unpack } from './files.ts';
 import * as notes from './notes.ts';
+import * as tebligat from './tebligat.ts';
+import * as timesheet from './timesheet.ts';
+import { analyzeFacts } from './emsal.ts';
 import * as backup from './backup.ts';
 import * as ai from './ai.ts';
 import type { AiModel } from './claude.ts';
@@ -331,6 +334,31 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; a
   app.put('/api/deadlines/:id', authed((req, user) => deadlines.setDeadlineDone(db, user, id(req), Boolean(req.body.done))));
   app.delete('/api/deadlines/:id', authed((req, user) => deadlines.deleteDeadline(db, user, id(req))));
   app.get('/api/risks', authed((_req, user) => deadlines.risks(db, user)));
+
+  // Tebligat takibi
+  app.get('/api/tebligat/meta', authed(() => ({ channels: tebligat.CHANNELS, noDeadline: tebligat.NO_DEADLINE })));
+  app.get('/api/tebligat', authed((req, user) => tebligat.listTebligat(db, user, req.query as Record<string, string>)));
+  app.post('/api/tebligat', authed((req, user) => tebligat.createTebligat(db, user, req.body ?? {})));
+  app.post('/api/tebligat/parse', authed((req, user) => tebligat.parseList(db, user, String(req.body?.text ?? ''))));
+  app.post('/api/tebligat/suggest', authed((req) => ({
+    ruleId: tebligat.suggestRule(String(req.body?.subject ?? ''), String(req.body?.area ?? '')),
+    servedDate: tebligat.servedDate((String(req.body?.channel ?? 'e-tebligat') in tebligat.CHANNELS ? req.body.channel : 'e-tebligat') as tebligat.Channel, String(req.body?.receivedDate ?? '')),
+  })));
+  app.put('/api/tebligat/:id', authed((req, user) => tebligat.updateTebligat(db, user, id(req), req.body ?? {})));
+  app.post('/api/tebligat/:id/track', authed((req, user) => tebligat.trackTebligat(db, user, id(req), req.body ?? {})));
+  app.delete('/api/tebligat/:id', authed((req, user) => tebligat.deleteTebligat(db, user, id(req))));
+
+  // Zaman takibi
+  app.get('/api/time', authed((req, user) => timesheet.listEntries(db, user, req.query as Record<string, string>)));
+  app.post('/api/time', authed((req, user) => timesheet.addEntry(db, user, req.body ?? {})));
+  app.post('/api/time/start', authed((req, user) => timesheet.startTimer(db, user, req.body ?? {})));
+  app.post('/api/time/invoice', authed((req, user) => timesheet.invoiceEntries(db, user, req.body ?? {})));
+  app.post('/api/time/:id/stop', authed((req, user) => timesheet.stopTimer(db, user, id(req))));
+  app.put('/api/time/:id', authed((req, user) => timesheet.updateEntry(db, user, id(req), req.body ?? {})));
+  app.delete('/api/time/:id', authed((req, user) => timesheet.deleteEntry(db, user, id(req))));
+
+  // Olaydan emsal bulma
+  app.post('/api/emsal', authed((req, user) => analyzeFacts(db, user, req.body ?? {}, aiModel)));
 
   app.get('/api/decisions', authed((req) => searchDecisions(db, String(req.query.q ?? ''))));
   app.get('/api/archive', authed((req) => searchArchive(db, req.query as Record<string, string>)));
