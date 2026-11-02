@@ -1,6 +1,8 @@
 // Sunucu adresi: kullanıcının girişte seçtiği adres, yoksa derleme sırasında verilen
 // VITE_TIMAY_SERVER_URL, o da yoksa geliştirmede yerel sunucu, kurulumda Render sunucusu.
+// Web sürümünde sayfa zaten Timay sunucusundan açıldığı için aynı adres kullanılır.
 export const DEFAULT_SERVER_URL =
+  (import.meta.env.VITE_TIMAY_WEB ? window.location.origin : '') ||
   import.meta.env.VITE_TIMAY_SERVER_URL ||
   (import.meta.env.DEV ? 'http://localhost:4000' : 'https://timay-sunucu.onrender.com');
 
