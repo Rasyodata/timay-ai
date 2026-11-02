@@ -72,13 +72,13 @@ export const SLIDES: Slide[] = [
 ];
 
 const KEY = 'timay-ekran-koruyucu';
-export const SAVER_OPTIONS = [0, 2, 5, 10, 15];
+export const SAVER_OPTIONS = [0, 1, 3, 5, 10, 15];
 export function saverMinutes() {
   try {
     const v = localStorage.getItem(KEY);
-    return v === null ? 5 : Number(v) || 0;
+    return v === null ? 3 : Number(v) || 0;
   } catch {
-    return 5;
+    return 3;
   }
 }
 function setSaverMinutes(n: number) {
@@ -96,20 +96,62 @@ export function showScreensaver() {
   window.dispatchEvent(new Event(SHOW));
 }
 
-export function Screensaver({ go }: { go: Go }) {
-  const [open, setOpen] = useState(false);
+const INTRO_MS = 11000;
+const INTRO_WORDS = ['Dilekçe', 'Yargıtay içtihadı', 'Dava dosyası', 'Sözleşme', 'İcra', 'Arabuluculuk', 'Muhasebe'];
+
+/** "Timay Platform · Hukuk Yazılımı" açılış animasyonu (reklam). */
+export function BrandIntro() {
+  return (
+    <section className="intro" onClick={(e) => e.stopPropagation()}>
+      <div className="intro-rings" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+      <div className="intro-logo">
+        <span className="intro-mark">T</span>
+        <svg className="intro-scale" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M12 3v18M7 21h10M5 7h14M5 7l-3 7a3 3 0 006 0L5 7zM19 7l-3 7a3 3 0 006 0l-3-7z" />
+        </svg>
+      </div>
+      <h1 className="intro-title">
+        {'TIMAY PLATFORM'.split('').map((ch, k) => (
+          <span key={k} style={{ animationDelay: `${0.9 + k * 0.06}s` }}>
+            {ch === ' ' ? ' ' : ch}
+          </span>
+        ))}
+      </h1>
+      <div className="intro-sub">HUKUK YAZILIMI</div>
+      <div className="intro-line" />
+      <p className="intro-tag">Yapay zekâ yazar, avukat onaylar.</p>
+      <div className="intro-words">
+        {INTRO_WORDS.map((w, k) => (
+          <span key={w} style={{ animationDelay: `${4.2 + k * 0.35}s` }}>
+            {w}
+          </span>
+        ))}
+      </div>
+      <div className="intro-site">timayplatform.com</div>
+    </section>
+  );
+}
+
+export function Screensaver({ go, ad = false }: { go: Go; ad?: boolean }) {
+  const [open, setOpen] = useState(ad);
   const [minutes, setMinutes] = useState(saverMinutes);
-  const [i, setI] = useState(0);
+  // -1: açılış animasyonu, 0..: modül slaytları
+  const [step, setStep] = useState(-1);
   const [now, setNow] = useState(new Date());
   const last = useRef(Date.now());
 
   // Hareketsizlik sayacı
   useEffect(() => {
+    if (ad) return;
     const touch = () => {
       last.current = Date.now();
     };
     const show = () => {
-      setI(0);
+      setStep(-1);
       setOpen(true);
     };
     window.addEventListener(SHOW, show);
@@ -117,7 +159,7 @@ export function Screensaver({ go }: { go: Go }) {
     for (const e of events) window.addEventListener(e, touch, { passive: true });
     const t = window.setInterval(() => {
       if (minutes > 0 && !open && Date.now() - last.current >= minutes * 60_000) {
-        setI(Math.floor(Math.random() * SLIDES.length));
+        setStep(-1);
         setOpen(true);
       }
     }, 5000);
@@ -126,38 +168,44 @@ export function Screensaver({ go }: { go: Go }) {
       window.removeEventListener(SHOW, show);
       window.clearInterval(t);
     };
-  }, [minutes, open]);
+  }, [minutes, open, ad]);
 
-  // Slayt ve saat
+  // Sahne geçişi: açılış → modüller → açılış …
   useEffect(() => {
     if (!open) return;
-    const s = window.setInterval(() => setI((x) => (x + 1) % SLIDES.length), SLIDE_MS);
+    const t = window.setTimeout(() => setStep((x) => (x + 1 >= SLIDES.length ? -1 : x + 1)), step < 0 ? INTRO_MS : SLIDE_MS);
+    return () => window.clearTimeout(t);
+  }, [open, step]);
+
+  useEffect(() => {
+    if (!open) return;
     const c = window.setInterval(() => setNow(new Date()), 1000);
     const key = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight') setI((x) => (x + 1) % SLIDES.length);
-      else if (e.key === 'ArrowLeft') setI((x) => (x - 1 + SLIDES.length) % SLIDES.length);
-      else close();
+      if (e.key === 'ArrowRight') setStep((x) => (x + 1 >= SLIDES.length ? -1 : x + 1));
+      else if (e.key === 'ArrowLeft') setStep((x) => (x <= -1 ? SLIDES.length - 1 : x - 1));
+      else if (!ad) close();
     };
     window.addEventListener('keydown', key);
     return () => {
-      window.clearInterval(s);
       window.clearInterval(c);
       window.removeEventListener('keydown', key);
     };
-  }, [open]);
+  }, [open, ad]);
 
   const close = () => {
+    if (ad) return;
     last.current = Date.now();
     setOpen(false);
   };
 
   if (!open) return null;
-  const s = SLIDES[i];
+  const s = step >= 0 ? SLIDES[step] : null;
+  const color = s?.color ?? '#c9a24a';
   const time = now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
   const date = now.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   return (
-    <div className="saver" onClick={close} style={{ ['--saver-c' as string]: s.color }}>
+    <div className={`saver${ad ? ' saver-ad' : ''}`} onClick={close} style={{ ['--saver-c' as string]: color }}>
       <div className="saver-bg" aria-hidden="true">
         <span className="orb o1" />
         <span className="orb o2" />
@@ -165,75 +213,86 @@ export function Screensaver({ go }: { go: Go }) {
         <span className="grid" />
       </div>
 
-      <header className="saver-top">
-        <div className="saver-brand">
-          <span className="logo-mark">T</span>
-          <span>
-            <strong>Timay</strong>
-            <small>Avukat onaylı yapay zekâ hukuk programı</small>
-          </span>
-        </div>
-        <div className="saver-clock">
-          <strong>{time}</strong>
-          <small>{date}</small>
-        </div>
-      </header>
+      {s && (
+        <header className="saver-top">
+          <div className="saver-brand">
+            <span className="logo-mark">T</span>
+            <span>
+              <strong>Timay Platform</strong>
+              <small>Hukuk Yazılımı · Avukat onaylı yapay zekâ</small>
+            </span>
+          </div>
+          <div className="saver-clock">
+            <strong>{time}</strong>
+            <small>{date}</small>
+          </div>
+        </header>
+      )}
 
-      <section key={i} className="saver-card" onClick={(e) => e.stopPropagation()}>
-        <div className="saver-icon">
-          <Icon name={s.icon} />
-        </div>
-        <div className="saver-body">
-          <span className="saver-kicker">{s.kicker}</span>
-          <h1>{s.title}</h1>
-          <p>{s.text}</p>
-          <ul>
-            {s.points.map((p) => (
-              <li key={p}>
-                <Icon name="check" /> {p}
-              </li>
-            ))}
-          </ul>
-          <button
-            className="saver-cta"
-            onClick={() => {
-              close();
-              go({ name: s.view } as View);
-            }}
-          >
-            {s.kicker} modülünü aç →
-          </button>
-        </div>
-        <div className="saver-progress" key={`p${i}`} />
-      </section>
+      {!s ? (
+        <BrandIntro key="intro" />
+      ) : (
+        <section key={step} className="saver-card" onClick={(e) => e.stopPropagation()}>
+          <div className="saver-icon">
+            <Icon name={s.icon} />
+          </div>
+          <div className="saver-body">
+            <span className="saver-kicker">{s.kicker}</span>
+            <h1>{s.title}</h1>
+            <p>{s.text}</p>
+            <ul>
+              {s.points.map((p) => (
+                <li key={p}>
+                  <Icon name="check" /> {p}
+                </li>
+              ))}
+            </ul>
+            {!ad && (
+              <button
+                className="saver-cta"
+                onClick={() => {
+                  close();
+                  go({ name: s.view } as View);
+                }}
+              >
+                {s.kicker} modülünü aç →
+              </button>
+            )}
+          </div>
+          <div className="saver-progress" key={`p${step}`} />
+        </section>
+      )}
 
       <nav className="saver-dots" onClick={(e) => e.stopPropagation()}>
+        <button className={step < 0 ? 'on' : ''} onClick={() => setStep(-1)} title="Timay Platform" />
         {SLIDES.map((x, k) => (
-          <button key={x.view} className={k === i ? 'on' : ''} onClick={() => setI(k)} title={x.kicker} />
+          <button key={x.view} className={k === step ? 'on' : ''} onClick={() => setStep(k)} title={x.kicker} />
         ))}
       </nav>
 
-      <footer className="saver-foot" onClick={(e) => e.stopPropagation()}>
-        <span>Devam etmek için boş bir yere tıklayın veya bir tuşa basın</span>
-        <label>
-          Ekran koruyucu:{' '}
-          <select
-            value={minutes}
-            onChange={(e) => {
-              const n = Number(e.target.value);
-              setMinutes(n);
-              setSaverMinutes(n);
-              if (!n) close();
-            }}
-          >
-            {SAVER_OPTIONS.map((n) => (
-              <option key={n} value={n}>
-                {n ? `${n} dakika sonra` : 'Kapalı'}
-              </option>
-            ))}
-          </select>
-        </label>
-      </footer>
+      {!ad && (
+        <footer className="saver-foot" onClick={(e) => e.stopPropagation()}>
+          <span>Devam etmek için boş bir yere tıklayın veya bir tuşa basın</span>
+          <label>
+            Ekran koruyucu:{' '}
+            <select
+              value={minutes}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                setMinutes(n);
+                setSaverMinutes(n);
+                if (!n) close();
+              }}
+            >
+              {SAVER_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n ? `${n} dakika sonra` : 'Kapalı'}
+                </option>
+              ))}
+            </select>
+          </label>
+        </footer>
+      )}
     </div>
   );
 }

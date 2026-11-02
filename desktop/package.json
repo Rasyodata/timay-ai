@@ -44,7 +44,8 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "language": "1055"
+      "language": "1055",
+      "shortcutName": "Timay Platform"
     }
   }
 }

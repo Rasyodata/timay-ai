@@ -82,7 +82,7 @@ export function App() {
       .finally(() => setChecking(false));
   }, []);
 
-  if (checking) return <div className="splash">Timay</div>;
+  if (checking) return <div className="splash">Timay Platform</div>;
   if (!user) return <AuthScreen onLogin={setUser} />;
   return (
     <Shell
@@ -140,7 +140,7 @@ function AuthScreen({ onLogin }: { onLogin: (u: User) => void }) {
       {settings === 'gate' && <SettingsGate user={null} onOpen={() => setSettings('open')} onCancel={() => setSettings('closed')} />}
       <aside className="auth-brand">
         <div className="logo">
-          <span className="logo-mark">T</span> Timay
+          <span className="logo-mark">T</span> Timay Platform
         </div>
         <h1>Hukuk büronuz için tek program</h1>
         <p>Dava dosyaları, dilekçeler, duruşmalar, sözleşmeler, icra ve muhasebe tek yerde. Her dilekçe başka bir avukatın onayından geçer.</p>
@@ -411,7 +411,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
     <div className="shell">
       <nav className="sidebar">
         <div className="logo">
-          <span className="logo-mark">T</span> Timay
+          <span className="logo-mark">T</span> Timay Platform
           <NotificationBell go={go} />
         </div>
         {NAV.map((group) => (
