@@ -1,9 +1,11 @@
 import { LetterheadCard } from './Clients';
 import { useState, type FormEvent } from 'react';
 import { api, type User } from './api';
+import { roleTitle } from './Ceo';
 import { Card, ErrorText, PageHeader, useAsync } from './ui';
 
-const PERMS: { key: 'is_admin' | 'can_finance' | 'can_approve' | 'all_cases'; body: string; label: string; hint: string }[] = [
+const PERMS: { key: 'is_ceo' | 'is_admin' | 'can_finance' | 'can_approve' | 'all_cases'; body: string; label: string; hint: string }[] = [
+  { key: 'is_ceo', body: 'isCeo', label: 'CEO paneli', hint: 'Ana sayfası yönetim paneli: bütün avukatların yaptıkları' },
   { key: 'is_admin', body: 'isAdmin', label: 'Büro yöneticisi', hint: 'Ekibe davet eder, yetkileri değiştirir' },
   { key: 'can_approve', body: 'canApprove', label: 'Onay verebilir', hint: 'Başkasının dilekçe ve sözleşmesini onaylar' },
   { key: 'can_finance', body: 'canFinance', label: 'Muhasebe', hint: 'Gelir, gider ve kâr-zararı görür' },
@@ -16,6 +18,21 @@ export function TeamView({ user }: { user: User }) {
   const [role, setRole] = useState<'avukat' | 'stajyer'>('avukat');
   const [invite, setInvite] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [direct, setDirect] = useState({ name: '', email: '', password: '', role: 'avukat', isCeo: false });
+  const [created, setCreated] = useState<string | null>(null);
+
+  async function addUser(e: FormEvent) {
+    e.preventDefault();
+    try {
+      const u = await api<User>('/users', { body: direct });
+      setCreated(`${u.name} eklendi. Giriş: ${u.email} · geçici şifre: ${direct.password} (ilk girişte kendi şifresini belirleyecek).`);
+      setDirect({ name: '', email: '', password: '', role: 'avukat', isCeo: false });
+      setErr(null);
+      reload();
+    } catch (ex) {
+      setErr((ex as Error).message);
+    }
+  }
 
   async function send(e: FormEvent) {
     e.preventDefault();
@@ -71,7 +88,7 @@ export function TeamView({ user }: { user: User }) {
                       <option value="stajyer">Stajyer</option>
                     </select>
                   ) : (
-                    <span className="badge">{u.role === 'avukat' ? 'Avukat' : 'Stajyer'}</span>
+                    <span className="badge">{roleTitle(u)}</span>
                   )}
                 </td>
                 {PERMS.map((p) => (
@@ -115,6 +132,32 @@ export function TeamView({ user }: { user: User }) {
               <span className="muted small">Bu kodu davet ettiğiniz kişiye iletin; giriş ekranındaki “Davet kodu” sekmesine yazacak.</span>
             </p>
           )}
+        </Card>
+      )}
+      {Boolean(user.is_admin) && (
+        <Card title="Kullanıcı ekle (davetsiz, geçici şifreyle)">
+          <form className="row wrap" onSubmit={addUser}>
+            <input placeholder="Ad soyad" value={direct.name} onChange={(e) => setDirect({ ...direct, name: e.target.value })} required />
+            <input type="email" placeholder="E-posta" value={direct.email} onChange={(e) => setDirect({ ...direct, email: e.target.value })} required />
+            <input
+              placeholder="Geçici şifre (en az 8)"
+              minLength={8}
+              value={direct.password}
+              onChange={(e) => setDirect({ ...direct, password: e.target.value })}
+              required
+            />
+            <select value={direct.role} onChange={(e) => setDirect({ ...direct, role: e.target.value })}>
+              <option value="avukat">Avukat</option>
+              <option value="stajyer">Stajyer</option>
+            </select>
+            <label className="check">
+              <input type="checkbox" checked={direct.isCeo} onChange={(e) => setDirect({ ...direct, isCeo: e.target.checked })} /> CEO (yönetim paneli)
+            </label>
+            <button className="primary" type="submit">
+              Kullanıcıyı ekle
+            </button>
+          </form>
+          {created && <p className="muted small">{created}</p>}
         </Card>
       )}
       {Boolean(user.is_admin) && <LetterheadCard />}

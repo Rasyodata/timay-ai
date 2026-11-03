@@ -27,6 +27,7 @@ import { caseSummary } from './casesummary.ts';
 import { DOC_KINDS, reviewWithAnalysis } from './disciplines.ts';
 import { insights } from './insights.ts';
 import { dashboard } from './dashboard.ts';
+import { activityFeed, ceoPanel } from './ceo.ts';
 import * as enforcement from './enforcement.ts';
 import * as icra from './icra.ts';
 import * as mediation from './mediation.ts';
@@ -91,6 +92,18 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; a
   app.get('/api/users', authed((_req, user) => auth.listOfficeUsers(db, user.office_id)));
   app.put('/api/users/:id/permissions', authed((req, user) => auth.setPermissions(db, user, id(req), req.body)));
   app.post('/api/invites', authed((req, user) => auth.createInvite(db, user, req.body)));
+  app.post('/api/users', authed((req, user) => auth.createUserDirect(db, user, req.body ?? {})));
+  app.post('/api/me/password', authed((req, user) => auth.changePassword(db, user, req.body ?? {})));
+
+  // Yönetim paneli (CEO): kayan şerit + iş zekâsı.
+  app.get('/api/ceo', authed((_req, user) => ceoPanel(db, user)));
+  app.get(
+    '/api/ceo/feed',
+    authed((_req, user) => {
+      if (!auth.canSeeCeoPanel(user)) throw new ApiError(403, 'Yönetim panelini yalnız CEO ve büro yöneticisi görür.');
+      return activityFeed(db, user, 60);
+    }),
+  );
 
   // Yapay zekâ (Claude)
   app.get('/api/ai/status', authed(() => ai.aiStatus(aiModel)));
