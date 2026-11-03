@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import * as auth from '../src/auth.ts';
 import * as cases from '../src/cases.ts';
 import { openDb } from '../src/db.ts';
-import { amounts, guessKind, reviewDocument, reviewForUser } from '../src/disciplines.ts';
+import { amounts, guessKind, reviewDocument, reviewForUser, reviewWithAnalysis } from '../src/disciplines.ts';
 import { ApiError } from '../src/errors.ts';
 
 const ZAYIF = `Sayın Mahkeme,
@@ -32,11 +32,11 @@ describe('çok disiplinli inceleme', () => {
     assert.deepEqual(amounts('120.000 TL ve 1.250,50 TL ile ₺300 TL'), [120000, 1250.5, 300]);
   });
 
-  it('sekiz disiplin çalışır; zayıf dilekçe ciddi eksik, iyi dilekçe daha yüksek puan alır', () => {
+  it('on ajan çalışır; zayıf dilekçe ciddi eksik, iyi dilekçe daha yüksek puan alır', () => {
     const db = openDb();
     const weak = reviewDocument({ db, body: ZAYIF, kind: 'dava', today: '2026-10-31' });
-    assert.equal(weak.disciplines.length, 8);
-    assert.equal(weak.disciplines[7].id, 'genel');
+    assert.equal(weak.disciplines.length, 10);
+    assert.deepEqual(weak.disciplines.map((d) => d.id), ['avukat', 'savci', 'hakim', 'karsi', 'bilirkisi', 'sure', 'delil', 'mevzuat', 'ictihat', 'genel']);
     assert.equal(weak.summary.verdict, 'ciddi');
     const texts = weak.disciplines.flatMap((d) => d.findings.map((f) => f.text)).join('\n');
     assert.match(texts, /SONUÇ VE İSTEM/);
@@ -57,5 +57,52 @@ describe('çok disiplinli inceleme', () => {
     assert.equal(r.kind, 'dava');
     assert.ok(r.disciplines[6].findings.some((f) => /ek anılıyor/.test(f.text)));
     assert.throws(() => reviewForUser(db, a, { body: '  ' }), (e: unknown) => e instanceof ApiError && e.status === 400);
+  });
+
+  it('mevzuat ajanı olmayan maddeyi ve büronun kaydettiği değişikliği yakalar', () => {
+    const db = openDb();
+    const a = auth.registerOffice(db, { officeName: 'M', name: 'Av. Bir', email: 'm@t.local', password: 'sifre1234' }).user;
+    db.prepare("INSERT INTO law_changes (office_id, law, articles, title, effective_date) VALUES (?, 'HMK', '107', 'Belirsiz alacak davası değişti', '2026-06-01')").run(a.office_id);
+    const r = reviewForUser(db, a, { body: IYI, kind: 'dava' });
+    const mev = r.disciplines.find((d) => d.id === 'mevzuat')!;
+    assert.ok(mev.findings.some((f) => /HMK m\.107 değişmiş/.test(f.text)), JSON.stringify(mev.findings));
+    const bad = reviewForUser(db, a, { body: 'TBK m.9999 uyarınca talep ederiz.', kind: 'dava' });
+    assert.ok(bad.disciplines.find((d) => d.id === 'mevzuat')!.findings.some((f) => f.level === 'kritik'));
+    assert.ok(bad.disciplines.find((d) => d.id === 'ictihat')!.findings.some((f) => /Yargıtay/.test(f.text)));
+  });
+
+  it('derin analiz: yapay zekâ yoksa standart sonuç ve açıklama döner; varsa ajan bulguları eklenir', async () => {
+    const db = openDb();
+    const a = auth.registerOffice(db, { officeName: 'D', name: 'Av. Bir', email: 'd@t.local', password: 'sifre1234' }).user;
+    const off = await reviewWithAnalysis(db, a, { body: IYI, analysis: 'derin' }, null);
+    assert.equal(off.analysis, 'standart');
+    assert.match(off.note ?? '', /yapay zekâ bağlantısı/);
+    let seen = '';
+    const model = async (req: { system: string; messages: { content: string }[] }) => {
+      seen = req.system + req.messages[0].content;
+      return {
+        model: 'test',
+        text: JSON.stringify({
+          agents: [
+            { id: 'sure', findings: [{ level: 'kritik', text: 'Hak düşürücü süre geçmiş olabilir.', basis: 'TMK m.1', quote: 'işe başlamış' }] },
+            { id: 'ictihat', findings: [{ level: 'uyari', text: 'Güncel HGK kararı eklenmeli.', basis: '', quote: 'uydurma cümle' }] },
+          ],
+        }),
+      };
+    };
+    const deep = await reviewWithAnalysis(db, a, { body: IYI, analysis: 'derin', side: 'karsi' }, model);
+    assert.equal(deep.analysis, 'derin');
+    assert.equal(deep.ai, true);
+    assert.match(seen, /KARŞI TARAFIN/);
+    const sure = deep.disciplines.find((d) => d.id === 'sure')!;
+    assert.ok(sure.findings.some((f) => f.ai && f.verified && f.level === 'kritik'));
+    assert.ok(deep.disciplines.find((d) => d.id === 'ictihat')!.findings.some((f) => f.ai && f.verified === false));
+    assert.match(deep.summary.verdictLabel, /Karşı tarafın/);
+    const failing = async () => {
+      throw new Error('bağlantı yok');
+    };
+    const fb = await reviewWithAnalysis(db, a, { body: IYI, analysis: 'derin' }, failing);
+    assert.equal(fb.analysis, 'standart');
+    assert.match(fb.note ?? '', /bağlantı yok/);
   });
 });

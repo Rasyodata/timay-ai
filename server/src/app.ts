@@ -24,7 +24,7 @@ import * as ai from './ai.ts';
 import type { AiModel } from './claude.ts';
 import { searchAll } from './search.ts';
 import { caseSummary } from './casesummary.ts';
-import { DOC_KINDS, reviewForUser } from './disciplines.ts';
+import { DOC_KINDS, reviewWithAnalysis } from './disciplines.ts';
 import { insights } from './insights.ts';
 import { dashboard } from './dashboard.ts';
 import * as enforcement from './enforcement.ts';
@@ -141,7 +141,7 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; a
 
   app.get('/api/dashboard', authed((_req, user) => dashboard(db, user)));
   app.get('/api/doc-kinds', authed(() => DOC_KINDS));
-  app.post('/api/disciplines', authed((req, user) => reviewForUser(db, user, req.body ?? {})));
+  app.post('/api/disciplines', authed((req, user) => reviewWithAnalysis(db, user, req.body ?? {}, aiModel)));
   app.get('/api/insights/:module', authed((req, user) => insights(db, user, String(req.params.module))));
   app.get('/api/areas', authed(() => listAreas()));
   app.get(

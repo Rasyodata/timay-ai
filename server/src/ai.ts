@@ -18,7 +18,14 @@ Kurallar:
 - Dayanak göster: kanun adı ve madde numarası (ör. "TBK m.344", "HMK m.119"), Yargıtay kararı biliyorsan daire, esas ve karar numarasıyla. Emin olmadığın numarayı uydurma; "doğrulanmalı" diye belirt.
 - Mevzuat sık değişir. Bilgin güncel olmayabilir; süre, oran ve harç gibi değerlerde "güncel mevzuattan teyit edin" uyarısını ekle.
 - Sana verilen dosya bilgilerine dayan; dosyada olmayan olguyu varsayma, eksik bilgiyi açıkça sor ya da belirt.
-- Kesin hüküm verme; son kararı avukat verir.`;
+- Kesin hüküm verme; son kararı avukat verir.
+Kimliğin: Sen "Timay Asistanı"sın, Timay Platform Hukuk Yazılımı'nın yapay zekâ hukuk asistanısın. Hangi yapay zekâ modelinin, şirketin ya da teknolojinin kullanıldığı sorulursa Timay Platform'un hukuk asistanı olduğunu, sistemin iç yapısıyla ilgili ayrıntı paylaşmadığını kibarca söyle ve hukuki konuya dön. Yapay zekâ olduğunu hiçbir zaman inkâr etme.`;
+
+/** Standart analiz hızlı yanıt verir; derin analiz her soruyu hukukun bütün disiplinleriyle tek tek denetler. */
+export type Analysis = 'standart' | 'derin';
+export const asAnalysis = (a: unknown): Analysis => (a === 'derin' ? 'derin' : 'standart');
+const effortOf = (a: Analysis): 'high' | 'medium' => (a === 'derin' ? 'high' : 'medium');
+const DERIN = `Derin analiz modu: Yanıtlamadan önce konuyu on ajanın gözüyle tek tek düşün: avukat (müvekkilin hakları), savcı (ceza boyutu), hâkim (usul ve şekil), karşı taraf avukatı (itirazlar), bilirkişi (hesap), süre (zamanaşımı, hak düşürücü süre, arabuluculuk), delil (ispat), mevzuat (maddeler ve güncelliği), içtihat (Yargıtay kararları) ve baş ajan (sonuç). Yanıtı ayrıntılı ve gerekçeli yaz; sonunda "Ajan kontrolü" başlığıyla her ajanın tek satırlık notunu ver.`;
 
 export const MODES = {
   genel: { label: 'Hukuk asistanı', hint: 'Soru sorun, strateji tartışın, metin yazdırın.', prompt: 'Avukatın sorularını yanıtla, strateji öner, gerekirse metin taslağı yaz.' },
@@ -55,6 +62,7 @@ export function aiStatus(model: AiModel | null) {
   return {
     enabled: model !== null,
     model: AI_MODEL,
+    assistant: 'Timay Asistanı',
     modes: Object.entries(MODES).map(([key, m]) => ({ key, label: m.label, hint: m.hint })),
   };
 }
@@ -144,7 +152,10 @@ export function createChat(db: DB, user: User, input: { mode?: string; caseId?: 
 
 export function getChat(db: DB, user: User, id: number) {
   const c = loadChat(db, user, id);
-  const messages = db.prepare('SELECT id, role, content, model, created_at FROM ai_messages WHERE chat_id = ? ORDER BY id').all(id);
+  const messages = (db.prepare('SELECT id, role, content, model, meta, created_at FROM ai_messages WHERE chat_id = ? ORDER BY id').all(id) as { meta: string }[]).map(({ meta, ...m }) => ({
+    ...m,
+    ...(meta ? (JSON.parse(meta) as { analysis?: Analysis; ms?: number }) : {}),
+  }));
   const caseTitle = c.case_id ? (db.prepare('SELECT title FROM cases WHERE id = ?').get(c.case_id) as { title: string } | undefined)?.title : undefined;
   const contractTitle = c.contract_id ? (db.prepare('SELECT title FROM contracts WHERE id = ?').get(c.contract_id) as { title: string } | undefined)?.title : undefined;
   return { ...c, case_title: caseTitle ?? '', contract_title: contractTitle ?? '', messages };
@@ -160,8 +171,10 @@ export function deleteChat(db: DB, user: User, id: number) {
 }
 
 /** Kullanıcının mesajını gönderir; yanıt gelince ikisi birlikte kaydedilir. */
-export async function sendMessage(db: DB, user: User, id: number, input: { content?: string }, model: AiModel | null) {
+export async function sendMessage(db: DB, user: User, id: number, input: { content?: string; analysis?: string }, model: AiModel | null) {
   const ai = need(model);
+  const analysis = asAnalysis(input.analysis);
+  const started = Date.now();
   const c = loadChat(db, user, id);
   const content = String(input.content ?? '').trim();
   if (!content) throw new ApiError(400, 'Mesaj boş olamaz.');
@@ -169,12 +182,13 @@ export async function sendMessage(db: DB, user: User, id: number, input: { conte
   const history = (db.prepare('SELECT role, content FROM ai_messages WHERE chat_id = ? ORDER BY id DESC LIMIT 40').all(id) as { role: 'user' | 'assistant'; content: string }[]).reverse();
   const context = [c.case_id ? caseContext(db, user, c.case_id) : '', c.contract_id ? contractContext(db, user, c.contract_id) : ''].filter(Boolean).join('\n\n');
   const office = db.prepare('SELECT name FROM offices WHERE id = ?').get(user.office_id) as { name: string } | undefined;
-  const system = `${COMMON}\n\nGörev: ${MODES[c.mode].prompt}\nKonuştuğun kişi: ${user.name} (${user.role}), büro: ${office?.name ?? ''}. Bugünün tarihi: ${new Date().toISOString().slice(0, 10)}.${context ? `\n\nÜzerinde çalışılan dosya:\n${context}` : ''}`;
-  const reply = await ai({ system, messages: [...history, { role: 'user', content }], effort: 'high', maxTokens: 32000 });
+  const system = `${COMMON}\n\nGörev: ${MODES[c.mode].prompt}\nKonuştuğun kişi: ${user.name} (${user.role}), büro: ${office?.name ?? ''}. Bugünün tarihi: ${new Date().toISOString().slice(0, 10)}.${analysis === 'derin' ? `\n\n${DERIN}` : ''}${context ? `\n\nÜzerinde çalışılan dosya:\n${context}` : ''}`;
+  const reply = await ai({ system, messages: [...history, { role: 'user', content }], effort: effortOf(analysis), maxTokens: analysis === 'derin' ? 32000 : 16000 });
+  const meta = JSON.stringify({ analysis, ms: Date.now() - started });
   db.transaction(() => {
-    const ins = db.prepare('INSERT INTO ai_messages (chat_id, role, content, model) VALUES (?, ?, ?, ?)');
-    ins.run(id, 'user', content, '');
-    ins.run(id, 'assistant', reply.text, reply.model);
+    const ins = db.prepare('INSERT INTO ai_messages (chat_id, role, content, model, meta) VALUES (?, ?, ?, ?, ?)');
+    ins.run(id, 'user', content, '', JSON.stringify({ analysis }));
+    ins.run(id, 'assistant', reply.text, reply.model, meta);
     db.prepare("UPDATE ai_chats SET updated_at = datetime('now'), title = CASE WHEN title = '' THEN ? ELSE title END WHERE id = ?").run(content.replace(/\s+/g, ' ').slice(0, 70), id);
   })();
   return getChat(db, user, id);
@@ -190,7 +204,8 @@ const PETITION_SCHEMA = {
 };
 
 /** Dava dosyasından dilekçe taslağı yazar ve dosyaya "taslak" olarak ekler. */
-export async function draftPetition(db: DB, user: User, input: { caseId?: number; kind?: string; instructions?: string }, model: AiModel | null) {
+export async function draftPetition(db: DB, user: User, input: { caseId?: number; kind?: string; instructions?: string; analysis?: string }, model: AiModel | null) {
+  const analysis = asAnalysis(input.analysis);
   const ai = need(model);
   const caseId = Number(input.caseId);
   if (!caseId) throw new ApiError(400, 'Dava dosyası seçin.');
@@ -198,14 +213,14 @@ export async function draftPetition(db: DB, user: User, input: { caseId?: number
   const context = caseContext(db, user, caseId);
   const r = await ai({
     system: `${COMMON}\n\nGörev: ${MODES.dilekce.prompt}\nYanıtın JSON: title (kısa dilekçe başlığı), body (dilekçenin tam metni, düz metin, başlıklar büyük harfle), notes (avukatın kontrol etmesi gereken noktalar ve eksik bilgiler, madde madde).`,
-    messages: [{ role: 'user', content: `${context}\n\nYazılacak metin: ${kind}\n${input.instructions ? `Avukatın talimatı: ${input.instructions}` : ''}\n\nDosyada bulunmayan bilgiler için köşeli parantezle yer tutucu bırak (ör. [TC kimlik no]).` }],
+    messages: [{ role: 'user', content: `${context}\n\nYazılacak metin: ${kind}\n${input.instructions ? `Avukatın talimatı: ${input.instructions}` : ''}\n\nDosyada bulunmayan bilgiler için köşeli parantezle yer tutucu bırak (ör. [TC kimlik no]).${analysis === 'derin' ? `\n\n${DERIN.replace('sonunda "Ajan kontrolü" başlığıyla her ajanın tek satırlık notunu ver', 'her ajanın notunu notes alanına yaz')}` : ''}` }],
     schema: PETITION_SCHEMA,
-    effort: 'high',
+    effort: effortOf(analysis),
   });
   const out = JSON.parse(r.text) as { title: string; body: string; notes: string };
   const petition = createPetition(db, user, { caseId, title: out.title || kind, body: out.body });
   saveResult(db, user, 'dilekce', (petition as { id: number }).id, caseId, kind, { notes: out.notes }, r.model);
-  return { petition, notes: out.notes, model: r.model };
+  return { petition, notes: out.notes, model: r.model, analysis };
 }
 
 /* ---------- Sözleşmeyi anlamsal okuma ---------- */
@@ -271,7 +286,8 @@ const DECISION_SCHEMA = {
   additionalProperties: false,
 };
 
-export async function classifyDecision(db: DB, user: User, input: { caseId?: number; decisionId?: number; text?: string; title?: string }, model: AiModel | null) {
+export async function classifyDecision(db: DB, user: User, input: { caseId?: number; decisionId?: number; text?: string; title?: string; analysis?: string }, model: AiModel | null) {
+  const analysis = asAnalysis(input.analysis);
   const ai = need(model);
   const caseId = Number(input.caseId);
   if (!caseId) throw new ApiError(400, 'Dava dosyası seçin.');
@@ -291,13 +307,13 @@ export async function classifyDecision(db: DB, user: User, input: { caseId?: num
     system: `${COMMON}\n\nGörev: Verilen kararın, verilen davada müvekkilimizin lehine mi aleyhine mi olduğunu değerlendir. side: lehte/aleyhte/notr. principle: kararın koyduğu ilke (bir iki cümle). reason: neden lehte/aleyhte. quote: karardan bu ilkeyi gösteren cümleyi HARFİ HARFİNE kopyala. use: dilekçede nasıl kullanılır ya da karşı tarafın kullanmasına nasıl cevap verilir.`,
     messages: [{ role: 'user', content: `${caseContext(db, user, caseId)}\n\n<karar baslik="${title}">\n${cut(text, 60000)}\n</karar>` }],
     schema: DECISION_SCHEMA,
-    effort: 'high',
+    effort: effortOf(analysis),
   });
   const out = JSON.parse(r.text) as { side: string; principle: string; reason: string; quote: string; use: string };
   const verified = !out.quote || norm(text).includes(norm(out.quote));
   const result = { ...out, verified, title };
   saveResult(db, user, 'ictihat', decisionId, caseId, title, result, r.model);
-  return { ...result, model: r.model };
+  return { ...result, model: r.model, analysis };
 }
 
 /* ---------- İnfaz hesabı ---------- */

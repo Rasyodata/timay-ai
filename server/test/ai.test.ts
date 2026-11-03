@@ -44,6 +44,15 @@ describe('yapay zekâ', () => {
     assert.match(calls[1].system, /Kiracı 2019 yılından beri oturuyor/);
     assert.match(calls[1].system, /HMK m\.119/);
     assert.deepEqual(calls[1].messages.map((m) => m.role), ['user', 'assistant', 'user']);
+    assert.equal(calls[0].effort, 'medium');
+    assert.equal((after.messages[1] as { analysis?: string }).analysis, 'standart');
+    assert.match(calls[0].system, /Timay Asistanı/);
+    const deep = await ai.sendMessage(db, a, chat.id, { content: 'Derin bak', analysis: 'derin' }, model);
+    assert.equal(calls[2].effort, 'high');
+    assert.match(calls[2].system, /Ajan kontrolü/);
+    const last = deep.messages[deep.messages.length - 1] as { analysis?: string; ms?: number };
+    assert.equal(last.analysis, 'derin');
+    assert.equal(typeof last.ms, 'number');
     assert.throws(() => ai.getChat(db, b, chat.id), (e: ApiError) => e.status === 404);
     assert.throws(() => ai.createChat(db, b, { caseId: c.id }), (e: ApiError) => e.status === 404);
     assert.equal(ai.listChats(db, a).length, 1);

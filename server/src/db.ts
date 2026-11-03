@@ -623,6 +623,9 @@ function migrate(db: DB) {
   if (!caseColumns.includes('status')) db.exec("ALTER TABLE cases ADD COLUMN status TEXT NOT NULL DEFAULT 'acik'");
   if (!caseColumns.includes('stage')) db.exec("ALTER TABLE cases ADD COLUMN stage TEXT NOT NULL DEFAULT ''");
 
+  const aiMessageColumns = (db.prepare('PRAGMA table_info(ai_messages)').all() as { name: string }[]).map((c) => c.name);
+  if (!aiMessageColumns.includes('meta')) db.exec("ALTER TABLE ai_messages ADD COLUMN meta TEXT NOT NULL DEFAULT ''");
+
   const userColumns = (db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).map((c) => c.name);
   if (!userColumns.includes('is_admin')) {
     db.exec('ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0');

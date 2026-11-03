@@ -36,7 +36,7 @@ export function OpposingView({ id, back }: { id: number; back: (caseId: number) 
         <div className="card">
           <p className="muted small">Kırmızı dayanaklar karşı tarafın dilekçesinde doğrulanamayan noktalardır; cevabınızda kullanabilirsiniz.</p>
           <button onClick={() => setDisc(true)}>
-            <Icon name="shield" /> 8 disiplinle incele
+            <Icon name="shield" /> 10 ajanla incele
           </button>
           <TeyitPanel report={data.teyit} onDeep={deep} deepBusy={busy} />
           <ErrorText error={actionError} />
@@ -119,7 +119,7 @@ export function PetitionView({ id, user, back, autoReview }: { id: number; user:
               </button>
             )}
             <button onClick={() => setDisc('view')}>
-              <Icon name="shield" /> 8 disiplinle incele
+              <Icon name="shield" /> 10 ajanla incele
             </button>
             <ExportButtons title={data.title} body={editable ? body : data.body} />
             {editable && (

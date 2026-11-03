@@ -13,7 +13,7 @@ import { ApiError } from './errors.ts';
  */
 
 /** Analiz kurallarının sürümü. Kurallar değiştiğinde artırılır; eski analizler "güncel değil" olur. */
-export const ENGINE = '2026.10.31-2';
+export const ENGINE = '2026.11.03-1';
 
 export type Entity = 'case' | 'contract' | 'group';
 export type Level = 'yuksek' | 'orta' | 'dusuk';
@@ -89,7 +89,7 @@ export function analyzeCase(db: DB, user: User, id: number): Analysis {
   const docs = (db.prepare('SELECT COUNT(*) AS n FROM case_documents WHERE case_id = ?').get(id) as { n: number }).n;
   if (docs === 0) add('belge', 'dusuk', 'Dosyaya hiç belge (delil, tebligat) yüklenmemiş.');
 
-  // Her dilekçenin son sürümü 8 disiplinle yeniden incelenir.
+  // Her dilekçenin son sürümü 10 ajanla yeniden incelenir.
   const petitions = db
     .prepare(
       `SELECT p.id, p.title, p.status, (SELECT body FROM petition_versions v WHERE v.petition_id = p.id ORDER BY version DESC LIMIT 1) AS body

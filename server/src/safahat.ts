@@ -50,7 +50,7 @@ export const STAGES: StageDef[] = [
     main: false,
     rule: { hukuk: 'hmk-cevap' },
     steps: [
-      { title: 'Cevap dilekçesi taslağını hazırlayın (8 disiplinle inceletin)', days: 5 },
+      { title: 'Cevap dilekçesi taslağını hazırlayın (10 ajanla inceletin)', days: 5 },
       { title: 'Müvekkilden delil ve belgeleri isteyin', days: 3 },
       { title: 'Gerekirse cevap süresinin uzatılmasını talep edin (HMK 127)', days: 7 },
     ],
@@ -136,7 +136,7 @@ export const STAGES: StageDef[] = [
     main: false,
     rule: { hukuk: 'hmk-istinaf', idare: 'iyuk-istinaf', ceza: 'cmk-istinaf' },
     steps: [
-      { title: 'İstinaf dilekçesini hazırlayın (8 disiplinle inceletin)', days: 7 },
+      { title: 'İstinaf dilekçesini hazırlayın (10 ajanla inceletin)', days: 7 },
       { title: 'İstinaf harç ve giderlerini yatırın', days: 10 },
     ],
   },

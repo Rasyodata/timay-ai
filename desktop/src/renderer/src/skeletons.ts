@@ -1,7 +1,7 @@
 import type { CaseDetail } from './api';
 
 /*
- * Belge türüne göre boş iskelet. Köşeli parantezli yerler doldurulur; 8 disiplinli inceleme
+ * Belge türüne göre boş iskelet. Köşeli parantezli yerler doldurulur; 10 ajanlı inceleme
  * hangi bölümün eksik kaldığını gösterir.
  */
 
