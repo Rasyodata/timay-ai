@@ -18,9 +18,13 @@ export interface User {
   can_approve: number;
   /** Büronun bütün dosyalarını görür; 0 ise yalnız sorumlu olduğu ya da görevi bulunan dosyaları. */
   all_cases: number;
+  /** Yönetim paneli: bütün avukatların yaptıklarını kayan şerit ve iş zekâsı ekranında izler. */
+  is_ceo: number;
+  /** Yönetici tarafından geçici şifreyle açıldı; ilk girişte şifresini değiştirmeli. */
+  must_change_password: number;
 }
 
-const USER_COLUMNS = 'id, office_id, name, email, role, is_admin, can_finance, can_approve, all_cases';
+const USER_COLUMNS = 'id, office_id, name, email, role, is_admin, can_finance, can_approve, all_cases, is_ceo, must_change_password';
 
 export function hashPassword(password: string): string {
   const salt = randomBytes(16).toString('hex');
@@ -139,7 +143,7 @@ export function setPermissions(
   db: DB,
   admin: User,
   userId: number,
-  input: { role?: Role; isAdmin?: boolean; canFinance?: boolean; canApprove?: boolean; allCases?: boolean },
+  input: { role?: Role; isAdmin?: boolean; canFinance?: boolean; canApprove?: boolean; allCases?: boolean; isCeo?: boolean },
 ) {
   if (!admin.is_admin) throw new ApiError(403, 'Yetkileri yalnızca büro yöneticisi değiştirebilir.');
   const target = db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ? AND office_id = ?`).get(userId, admin.office_id) as
@@ -162,5 +166,91 @@ export function setPermissions(
     input.allCases === undefined ? target.all_cases : input.allCases ? 1 : 0,
     userId,
   );
+  if (input.isCeo !== undefined) {
+    // Yönetim paneli bütün büroyu gösterir; bu yüzden tüm dosyaları da görür.
+    db.prepare('UPDATE users SET is_ceo = ?, all_cases = CASE WHEN ? = 1 THEN 1 ELSE all_cases END WHERE id = ?').run(
+      input.isCeo ? 1 : 0,
+      input.isCeo ? 1 : 0,
+      userId,
+    );
+  }
   return getUser(db, userId);
+}
+
+/** Yönetim panelini (CEO) görebilir mi: CEO ya da büro yöneticisi. */
+export function canSeeCeoPanel(user: User): boolean {
+  return Boolean(user.is_ceo || user.is_admin);
+}
+
+/**
+ * Büro yöneticisi davet kodu olmadan doğrudan kullanıcı açar. Verilen şifre geçicidir;
+ * kişi ilk girişte kendi şifresini belirler.
+ */
+export function createUserDirect(
+  db: DB,
+  admin: User,
+  input: { name: string; email: string; password: string; role?: Role; isCeo?: boolean },
+) {
+  if (!admin.is_admin) throw new ApiError(403, 'Kullanıcıyı yalnızca büro yöneticisi ekleyebilir.');
+  requireFields({ name: input.name, email: input.email, password: input.password });
+  const role: Role = input.role ?? 'avukat';
+  if (role !== 'avukat' && role !== 'stajyer') throw new ApiError(400, 'Geçersiz rol.');
+  return db.transaction(() => {
+    const userId = insertUser(db, admin.office_id, input.name, input.email.trim().toLowerCase(), input.password, role);
+    db.prepare('UPDATE users SET must_change_password = 1 WHERE id = ?').run(userId);
+    if (input.isCeo) makeCeo(db, userId);
+    return getUser(db, userId);
+  })();
+}
+
+/**
+ * CEO + avukat + direktör: bütün büroyu görür, muhasebeyi izler, ekibi yönetir (direktör)
+ * ve avukat olarak dilekçe/sözleşme onaylar.
+ */
+function makeCeo(db: DB, userId: number) {
+  db.prepare("UPDATE users SET role = 'avukat', is_ceo = 1, is_admin = 1, can_finance = 1, all_cases = 1, can_approve = 1 WHERE id = ?").run(userId);
+}
+
+/** Kişi kendi şifresini değiştirir (geçici şifreyle girdiyse zorunlu). */
+export function changePassword(db: DB, user: User, input: { current: string; next: string }) {
+  requireFields({ current: input.current, next: input.next });
+  const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(user.id) as { password_hash: string };
+  if (!verifyPassword(input.current, row.password_hash)) throw new ApiError(400, 'Şu anki şifre hatalı.');
+  if (input.next.length < 8) throw new ApiError(400, 'Yeni şifre en az 8 karakter olmalıdır.');
+  if (input.next === input.current) throw new ApiError(400, 'Yeni şifre eskisiyle aynı olamaz.');
+  db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?').run(hashPassword(input.next), user.id);
+  return getUser(db, user.id);
+}
+
+/**
+ * Tuğba Yörük (CEO, avukat, direktör) hesabı. Sunucu her açılışta bakar;
+ * kullanıcı yoksa en çok kullanılan büroya geçici şifreyle ekler. Şifrenin kendisi kodda yok,
+ * yalnız özeti (hash) var; ilk girişte değiştirmesi istenir.
+ */
+export const CEO_SEED = {
+  name: 'Tuğba Yörük',
+  email: 'tugba@timayplatform.com',
+  passwordHash: '024df35cbde2cd932bd6cc1d78951e84:93e815174b30f6c0e4e280796815c8f3e56c058f844eac0993b6994f3dce4f797d82e03937eea0ec16fcdc90cfb8372e4b4df09877040e5a96d7ef9f970bc41a',
+};
+
+export function seedCeo(db: DB, seed = CEO_SEED): User | null {
+  if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(seed.email)) return null;
+  const office = db
+    .prepare(
+      `SELECT o.id FROM offices o
+       ORDER BY (SELECT COUNT(*) FROM users u WHERE u.office_id = o.id) + (SELECT COUNT(*) FROM cases c WHERE c.office_id = o.id) DESC, o.id
+       LIMIT 1`,
+    )
+    .get() as { id: number } | undefined;
+  if (!office) return null;
+  return db.transaction(() => {
+    const r = db
+      .prepare(
+        "INSERT INTO users (office_id, name, email, password_hash, role, must_change_password) VALUES (?, ?, ?, ?, 'avukat', 1)",
+      )
+      .run(office.id, seed.name, seed.email, seed.passwordHash);
+    const userId = Number(r.lastInsertRowid);
+    makeCeo(db, userId);
+    return getUser(db, userId);
+  })();
 }
