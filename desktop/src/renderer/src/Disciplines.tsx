@@ -168,6 +168,70 @@ export function AgentIcon({ agent, size = 22 }: { agent: AgentMeta; size?: numbe
   );
 }
 
+/** Diğer modüllerde (dava, sözleşme, icra) ajanların kontrol adımları. */
+export type AgentModule = 'dilekce' | 'dava' | 'sozlesme' | 'grup' | 'icra';
+const CONTRACT_STEPS: Record<string, string[]> = {
+  avukat: ['Lehe / aleyhe maddeler ayrılıyor', 'Taahhütler okunuyor', 'Eksik koruyucu maddeler aranıyor'],
+  savci: ['Cezai sorumluluk doğuran maddeler', 'Sahtecilik / güveni kötüye kullanma riski', 'Yasak işlem kontrolü'],
+  hakim: ['Şekil şartı (yazılı / resmî)', 'Geçerlilik ve ehliyet', 'Yetkili mahkeme / tahkim'],
+  karsi: ['Karşı tarafın kaçış maddeleri', 'Tek taraflı fesih hakları', 'Yorum riskleri'],
+  bilirkisi: ['Bedel ve ödeme planı', 'Cezai şart ve faiz', 'Kur ve endeksleme'],
+  sure: ['Başlangıç ve bitiş tarihleri', 'Fesih bildirim süreleri', 'Gecikmiş taahhütler'],
+  delil: ['İmza ve ekler', 'Teslim tutanakları', 'Bildirim yolları (noter, KEP)'],
+  mevzuat: ['TBK / TTK maddeleri', 'Emredici hükümler', 'Mevzuat değişiklikleri'],
+  ictihat: ['Benzer Yargıtay kararları', 'Lehte / aleyhte içtihat', 'Cezai şart indirimi kararları'],
+};
+export const MODULE_STEPS: Partial<Record<AgentModule, Record<string, string[]>>> = {
+  dava: {
+    avukat: ['Müvekkil bilgileri okunuyor', 'Talepler ve strateji gözden geçiriliyor', 'Vekâletname kontrol ediliyor'],
+    savci: ['Olaylarda suç unsuru taranıyor', 'Ceza boyutu değerlendiriliyor', 'Şikâyet süresi kontrol ediliyor'],
+    hakim: ['Mahkeme ve esas no kontrol ediliyor', 'Taraf bilgileri sayılıyor', 'Usul eksikleri aranıyor'],
+    karsi: ['Karşı tarafın itirazları öngörülüyor', 'Zayıf iddialar işaretleniyor', 'Cevap riskleri tartılıyor'],
+    bilirkisi: ['Dava değeri ve harç', 'Alacak hesapları', 'Masraf ve gider avansı'],
+    sure: ['Duruşma tarihleri', 'Kesin süreler', 'Zamanaşımı ve arabuluculuk'],
+    delil: ['Dosyadaki belgeler sayılıyor', 'Delil–iddia eşleşmesi', 'Eksik ekler aranıyor'],
+    mevzuat: ['Dayanak kanunlar', 'Madde güncelliği', 'Mevzuat değişiklik kayıtları'],
+    ictihat: ['Dilekçelerdeki künyeler', 'Karar arşivinde arama', 'Emsal ihtiyacı'],
+  },
+  sozlesme: CONTRACT_STEPS,
+  grup: CONTRACT_STEPS,
+  icra: {
+    avukat: ['Tahsil imkânları değerlendiriliyor', 'Sorgu sonuçları okunuyor', 'Sonraki adım öneriliyor'],
+    savci: ['Mal kaçırma şüphesi', 'Karşılıksız çek / suç boyutu', 'Şikâyet yolları'],
+    hakim: ['Borçlu kimlik ve adres', 'Takip türü ve dayanak', 'Usul eksikleri'],
+    karsi: ['Borçlu itirazları', 'İtirazın iptali / kaldırılması', 'Şikâyet riskleri'],
+    bilirkisi: ['Asıl alacak ve faiz', 'Masraf ve vekâlet ücreti', 'Kalan borç hesabı'],
+    sure: ['Haciz isteme süresi (İİK 78)', 'Hareketsizlik süresi', 'İtiraz süreleri'],
+    delil: ['Mal varlığı sorguları', 'Sorgu tarihleri', 'Tebligat belgeleri'],
+    mevzuat: ['İİK maddeleri', 'Faiz mevzuatı (3095)', 'Güncel değişiklikler'],
+    ictihat: ['İlam ve kesinleşme', 'İcra hukuk kararları', 'Emsal kontrolü'],
+  },
+};
+const stepsOf = (a: AgentMeta, module?: AgentModule) => MODULE_STEPS[module ?? 'dilekce']?.[a.id] ?? a.steps;
+
+const ANALYSIS_KEY = 'timay-analiz';
+/** Kullanıcının son seçtiği analiz türü (bu bilgisayarda hatırlanır). */
+export function useAnalysis(): [Analysis, (a: Analysis) => void] {
+  const [a, setA] = useState<Analysis>(() => {
+    try {
+      return localStorage.getItem(ANALYSIS_KEY) === 'derin' ? 'derin' : 'standart';
+    } catch {
+      return 'standart';
+    }
+  });
+  return [
+    a,
+    (v) => {
+      setA(v);
+      try {
+        localStorage.setItem(ANALYSIS_KEY, v);
+      } catch {
+        /* yok say */
+      }
+    },
+  ];
+}
+
 /* ---------- Standart / Derin Analiz seçici ---------- */
 
 export function AnalysisSwitch({ value, onChange, aiEnabled, compact }: { value: Analysis; onChange: (a: Analysis) => void; aiEnabled?: boolean; compact?: boolean }) {
@@ -258,12 +322,15 @@ export function DisciplineScreen({
   title,
   caseId,
   initialKind,
-  initialAnalysis = 'standart',
+  initialAnalysis,
   initialSide = 'biz',
   allowSide,
   onClose,
   onContinue,
   continueLabel,
+  runner,
+  module,
+  heading,
 }: {
   body: string;
   title?: string;
@@ -275,14 +342,19 @@ export function DisciplineScreen({
   onClose: () => void;
   onContinue?: () => void;
   continueLabel?: string;
+  /** Verilirse belge yerine bu çalıştırılır (dava, sözleşme, icra analizi). */
+  runner?: (analysis: Analysis) => Promise<DisciplineReview>;
+  module?: AgentModule;
+  heading?: string;
 }) {
   const [kind, setKind] = useState(initialKind ?? '');
-  const [analysis, setAnalysis] = useState<Analysis>(initialAnalysis);
+  const [preferred] = useAnalysis();
+  const [analysis, setAnalysis] = useState<Analysis>(initialAnalysis ?? preferred);
   const [side, setSide] = useState<Side>(initialSide);
   const [review, setReview] = useState<DisciplineReview | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
-  const empty = !body.trim();
+  const empty = !runner && !body.trim();
   const total = AGENTS.length * PER_AGENT;
   const holdAt = (AGENTS.length - 1) * PER_AGENT; // Baş Ajan sonuç gelene kadar bekler
 
@@ -292,11 +364,11 @@ export function DisciplineScreen({
     setReview(null);
     setTick(0);
     setErr(null);
-    runDisciplines({ body, title, kind: kind || undefined, caseId, analysis, side })
+    (runner ? runner(analysis) : runDisciplines({ body, title, kind: kind || undefined, caseId, analysis, side }))
       .then((r) => {
         if (!alive) return;
         setReview(r);
-        if (!kind) setKind(r.kind);
+        if (!kind && !runner) setKind(r.kind);
       })
       .catch((e) => alive && setErr((e as Error).message));
     return () => {
@@ -322,7 +394,7 @@ export function DisciplineScreen({
   const active = Math.min(Math.floor(tick / PER_AGENT), AGENTS.length - 1);
   const agentNow = AGENTS[active];
   const stepNow = Math.min(tick % PER_AGENT, 2);
-  const elapsed = review?.elapsedMs != null ? (review.elapsedMs / 1000).toFixed(1) : null;
+  const elapsed = review?.elapsedMs != null ? (review.elapsedMs < 100 ? 'anında' : `${(review.elapsedMs / 1000).toFixed(1)} sn`) : null;
   const findings = useMemo(() => new Map(review?.disciplines.map((d) => [d.id, d]) ?? []), [review]);
 
   return (
@@ -331,15 +403,15 @@ export function DisciplineScreen({
         <div className="disc-head">
           <div>
             <h2>
-              <span className="ajan-title-badge">10 Ajan</span> {side === 'karsi' ? 'Karşı taraf belgesi incelemesi' : 'Hukuki denetim'}
+              <span className="ajan-title-badge">10 Ajan</span> {heading ?? (side === 'karsi' ? 'Karşı taraf belgesi incelemesi' : 'Hukuki denetim')}
             </h2>
             <p className="muted small">
-              {title || 'Belge'} · her ajan metni kendi gözüyle okur, 10. Baş Ajan hepsini birleştirir.
+              {title || 'Belge'} · her ajan kendi gözüyle inceler, 10. Baş Ajan hepsini birleştirir.
             </p>
           </div>
           <div className="disc-head-actions">
             <AnalysisSwitch value={analysis} onChange={setAnalysis} compact />
-            {allowSide && (
+            {allowSide && !runner && (
               <label className="disc-kind">
                 <span className="muted small">Belge kimin?</span>
                 <select value={side} onChange={(e) => setSide(e.target.value as Side)}>
@@ -348,6 +420,7 @@ export function DisciplineScreen({
                 </select>
               </label>
             )}
+            {!runner && (
             <label className="disc-kind">
               <span className="muted small">Belge türü</span>
               <select value={kind} onChange={(e) => setKind(e.target.value)}>
@@ -359,6 +432,7 @@ export function DisciplineScreen({
                 ))}
               </select>
             </label>
+            )}
             <button className="ghost" onClick={onClose} aria-label="Kapat">
               Kapat
             </button>
@@ -390,14 +464,14 @@ export function DisciplineScreen({
               {done ? (
                 <>
                   <strong>10 ajan işini bitirdi.</strong> {review?.analysis === 'derin' ? 'Derin analiz (kurallar + yapay zekâ).' : 'Standart analiz (kurallar).'}
-                  {elapsed && <span className="muted"> · {elapsed} sn</span>}
+                  {elapsed && <span className="muted"> · {elapsed}</span>}
                 </>
               ) : (
                 <>
                   <strong style={{ color: agentNow.color }}>
                     {active + 1}/10 · {agentNow.title}
                   </strong>{' '}
-                  {!review && active === AGENTS.length - 1 ? (analysis === 'derin' ? 'yapay zekâ ajanları metni okuyor…' : 'sonuçlar bekleniyor…') : `${agentNow.steps[stepNow].toLocaleLowerCase('tr')}…`}
+                  {!review && active === AGENTS.length - 1 ? (analysis === 'derin' ? 'yapay zekâ ajanları metni okuyor…' : 'sonuçlar bekleniyor…') : `${stepsOf(agentNow, module)[stepNow].toLocaleLowerCase('tr')}…`}
                 </>
               )}
               {!done && review && (
@@ -431,7 +505,7 @@ export function DisciplineScreen({
             <div className="disc-verdict-text">
               <strong>{review.summary.verdictLabel}</strong>
               <span>
-                {review.summary.critical} kritik, {review.summary.warnings} uyarı · {review.kindLabel}
+                {review.summary.critical} kritik, {review.summary.warnings} uyarı{review.kindLabel ? ` · ${review.kindLabel}` : ''}
                 {review.ai ? ' · yapay zekâ dahil' : ''}
               </span>
               {review.summary.priorities.length > 0 && (
@@ -480,7 +554,7 @@ export function DisciplineScreen({
 
                 {(running || pending) && (
                   <ul className="ajan-steps">
-                    {a.steps.map((s, j) => {
+                    {stepsOf(a, module).map((s, j) => {
                       const sd = pending || (running && (j < stepNow || (j === 2 && tick % PER_AGENT === 3)));
                       const sr = running && j === stepNow && !sd;
                       return (
@@ -516,7 +590,7 @@ export function DisciplineScreen({
                 )}
                 {state === 'idle' && (
                   <ul className="ajan-steps idle">
-                    {a.steps.map((s) => (
+                    {stepsOf(a, module).map((s) => (
                       <li key={s}>
                         <span className="ajan-step-mark">○</span>
                         {s}
@@ -538,7 +612,7 @@ export function DisciplineScreen({
                 : 'Standart analiz: kurallara dayalı, anında ve ücretsiz. Daha ayrıntılı inceleme için Derin Analiz’i seçin.'}
           </span>
           <div className="row">
-            <button onClick={onClose}>{empty ? 'Yazmaya başla' : 'Düzeltmeye dön'}</button>
+            <button onClick={onClose}>{runner ? 'Kapat' : empty ? 'Yazmaya başla' : 'Düzeltmeye dön'}</button>
             {onContinue && done && (
               <button className={review?.summary.verdict === 'hazir' ? 'primary' : ''} onClick={onContinue}>
                 {continueLabel ?? 'Devam et'}

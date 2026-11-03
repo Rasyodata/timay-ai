@@ -485,6 +485,28 @@ const DEEP_SCHEMA = {
 
 const squash = (s: string) => lower(s).replace(/\s+/g, ' ').trim();
 
+export const DEEP_UNAVAILABLE = 'Derin analiz için yapay zekâ bağlantısı gerekiyor (sunucuya Claude API anahtarı eklenince açılır). Bu sefer standart analiz yapıldı.';
+
+/**
+ * Dokuz ajanın yapay zekâyla okuması (dava dosyası, sözleşme, icra dosyası gibi her tür metin için).
+ * subject: neyin incelendiği ve bakış açısı; known: kuralların zaten bulduğu bulgular (tekrar edilmez).
+ */
+export async function deepAgentFindings(model: AiModel, input: { subject: string; content: string; known: string }) {
+  const lenses = AGENTS.map((a) => `- ${a.id} (${a.title}): ${a.lens}`).join('\n');
+  const r = await model({
+    system: `Sen Türk hukukunda uzman, titiz bir avukatlık bürosunun inceleme kurulusun. Kurul dokuz ajandan oluşur; her ajan yalnız kendi gözüyle okur:\n${lenses}\n\n${input.subject}\nKurallar: Her ajan için 0-4 bulgu yaz; gereksiz bulgu yazma. level: iyi/uyari/kritik. basis: dayanak kanun maddesi ya da yerleşik içtihat (emin değilsen "doğrulanmalı" yaz; numara uydurma). quote: metinden HARFİ HARFİNE kısa bir parça (yoksa boş). text: Türkçe, bir iki cümle. Kurallarla zaten bulunan bulguları tekrar etme.`,
+    messages: [{ role: 'user', content: `${input.content}\n\nKuralların bulduğu bulgular (tekrar etme):\n${input.known || '(yok)'}` }],
+    schema: DEEP_SCHEMA,
+    effort: 'high',
+  });
+  const out = JSON.parse(r.text) as { agents: { id: string; findings: Finding[] }[] };
+  const text = squash(input.content);
+  const findings = out.agents.flatMap((a) =>
+    a.findings.map((f) => ({ ...f, agent: a.id, basis: f.basis || undefined, quote: f.quote || undefined, ai: true, verified: !f.quote || text.includes(squash(f.quote)) })),
+  );
+  return { findings, model: r.model };
+}
+
 /**
  * Standart ya da derin analiz. Derinde kurallara ek olarak yapay zekâ her ajanın gözüyle metni okur.
  * Yapay zekâ bağlı değilse ya da hata verirse standart sonuç döner ve note alanı nedenini söyler.
@@ -495,37 +517,27 @@ export async function reviewWithAnalysis(db: DB, user: User, input: ReviewInput,
   const body = String(input.body ?? '');
   const base = reviewDocument({ db, body, kind: input.kind, title: input.title, caseInfo, officeId: user.office_id, side: input.side });
   if (input.analysis !== 'derin') return { ...base, elapsedMs: Date.now() - started };
-  if (!model) return { ...base, analysis: 'standart', note: 'Derin analiz için yapay zekâ bağlantısı gerekiyor (sunucuya Claude API anahtarı eklenince açılır). Bu sefer standart analiz yapıldı.', elapsedMs: Date.now() - started };
+  if (!model) return { ...base, analysis: 'standart', note: DEEP_UNAVAILABLE, elapsedMs: Date.now() - started };
   const sideText =
     base.side === 'karsi'
       ? 'Bu belge KARŞI TARAFIN belgesidir. Her ajan bu belgenin zayıf noktalarını, çürütülebilecek iddialarını, usul ve süre hatalarını ve bizim cevabımızda kullanacağımız itirazları bulsun. "kritik" = karşı tarafın en büyük açığı.'
       : 'Bu belge BİZİM belgemizdir (müvekkil adına). Her ajan eksikleri, riskleri ve düzeltilmesi gerekenleri bulsun.';
-  const lenses = AGENTS.map((a) => `- ${a.id} (${a.title}): ${a.lens}`).join('\n');
   try {
-    const r = await model({
-      system: `Sen Türk hukukunda uzman, titiz bir avukatlık bürosunun inceleme kurulusun. Kurul dokuz ajandan oluşur; her ajan metni yalnız kendi gözüyle okur:\n${lenses}\n\n${sideText}\nKurallar: Her ajan için 0-4 bulgu yaz; gereksiz bulgu yazma. level: iyi/uyari/kritik. basis: dayanak kanun maddesi ya da yerleşik içtihat (emin değilsen "doğrulanmalı" yaz; numara uydurma). quote: metinden HARFİ HARFİNE kısa bir parça (yoksa boş). text: Türkçe, bir iki cümle. Kurallarla zaten bulunan bulguları tekrar etme.`,
-      messages: [
-        {
-          role: 'user',
-          content: `${caseInfo ? `<dava_bilgisi>Mahkeme: ${caseInfo.court || '-'} | Alan: ${caseInfo.area || '-'} | Müvekkil: ${caseInfo.client || '-'}\nOlaylar: ${caseInfo.facts.slice(0, 15000) || '-'}</dava_bilgisi>\n\n` : ''}<belge tur="${base.kindLabel}" baslik="${String(input.title ?? '')}">\n${body.slice(0, 120000)}\n</belge>\n\nKuralların bulduğu bulgular (tekrar etme):\n${base.disciplines
-            .filter((d) => d.id !== 'genel')
-            .map((d) => `${d.id}: ${d.findings.map((f) => f.text).join(' | ')}`)
-            .join('\n')}`,
-        },
-      ],
-      schema: DEEP_SCHEMA,
-      effort: 'high',
+    const deep = await deepAgentFindings(model, {
+      subject: sideText,
+      content: `${caseInfo ? `<dava_bilgisi>Mahkeme: ${caseInfo.court || '-'} | Alan: ${caseInfo.area || '-'} | Müvekkil: ${caseInfo.client || '-'}\nOlaylar: ${caseInfo.facts.slice(0, 15000) || '-'}</dava_bilgisi>\n\n` : ''}<belge tur="${base.kindLabel}" baslik="${String(input.title ?? '')}">\n${body.slice(0, 120000)}\n</belge>`,
+      known: base.disciplines
+        .filter((d) => d.id !== 'genel')
+        .map((d) => `${d.id}: ${d.findings.map((f) => f.text).join(' | ')}`)
+        .join('\n'),
     });
-    const out = JSON.parse(r.text) as { agents: { id: string; findings: Finding[] }[] };
-    const text = squash(body);
     const disciplines = base.disciplines.map((d) => {
-      const extra = out.agents.filter((a) => a.id === d.id).flatMap((a) => a.findings);
-      const ai = extra.map((f) => ({ ...f, basis: f.basis || undefined, quote: f.quote || undefined, ai: true, verified: !f.quote || text.includes(squash(f.quote)) }));
+      const ai = deep.findings.filter((f) => f.agent === d.id).map(({ agent: _a, ...f }) => f);
       // Yapay zekâ sorun bulduysa kuralların "iyi" notu yanıltmasın.
       const keep = ai.some((f) => f.level !== 'iyi') ? d.findings.filter((f) => f.level !== 'iyi') : d.findings;
       return { ...d, findings: [...keep, ...ai] };
     });
-    return { ...summarize({ ...base, disciplines, ai: true, analysis: 'derin' }), model: r.model, elapsedMs: Date.now() - started };
+    return { ...summarize({ ...base, disciplines, ai: true, analysis: 'derin' }), model: deep.model, elapsedMs: Date.now() - started };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return { ...base, analysis: 'standart', note: `Derin analiz şu an yapılamadı (${msg}). Standart analiz sonucu gösteriliyor.`, elapsedMs: Date.now() - started };

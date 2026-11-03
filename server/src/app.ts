@@ -204,7 +204,7 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; a
   app.get('/api/notifications', authed((_req, user) => notifications.listNotifications(db, user)));
   app.post('/api/notifications/read', authed((req, user) => notifications.markRead(db, user, req.body ?? {})));
   app.get('/api/refresh/:entity/:id', authed((req, user) => refresh.status(db, user, String(req.params.entity), id(req))));
-  app.post('/api/refresh/:entity/:id', authed((req, user) => refresh.refresh(db, user, String(req.params.entity), id(req))));
+  app.post('/api/refresh/:entity/:id', authed((req, user) => refresh.refreshWithAnalysis(db, user, String(req.params.entity), id(req), req.body ?? {}, aiModel)));
   app.post('/api/refresh-all', authed((req, user) => refresh.refreshAll(db, user, req.body ?? {})));
   app.get('/api/contracts/:id/relations', authed((req, user) => groups.relations(db, user, id(req))));
   app.get('/api/contracts', authed((_req, user) => contracts.listContracts(db, user)));

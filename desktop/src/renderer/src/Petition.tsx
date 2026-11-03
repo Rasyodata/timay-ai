@@ -28,7 +28,7 @@ export function OpposingView({ id, back }: { id: number; back: (caseId: number) 
   return (
     <div className="page">
       <PageHeader back={() => back(data.case_id)} title={data.title} subtitle="Karşı taraf dilekçesi" actions={<span className="badge">Karşı taraf</span>} />
-      {disc && <DisciplineScreen body={data.body} title={data.title} caseId={data.case_id} onClose={() => setDisc(false)} />}
+      {disc && <DisciplineScreen body={data.body} title={data.title} caseId={data.case_id} initialSide="karsi" allowSide onClose={() => setDisc(false)} />}
       <div className="two-col wide-left">
         <div className="card">
           <HighlightedText body={data.body} items={data.teyit.items} />

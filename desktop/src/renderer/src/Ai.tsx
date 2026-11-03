@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef, useState, type FormEvent, type ReactNode }
 import { api } from './api';
 import type { Go } from './App';
 import { ClaudeConnect } from './ClaudeConnect';
-import { AgentStrip, AnalysisSwitch, DisciplineScreen, DOC_KIND_OPTIONS, type Analysis, type Side } from './Disciplines';
+import { AgentStrip, AnalysisSwitch, DisciplineScreen, DOC_KIND_OPTIONS, useAnalysis, type Analysis, type Side } from './Disciplines';
 import { Card, Empty, ErrorText, Field, formatDate, Icon, PageHeader, Stat, Tabs, useAsync } from './ui';
 
 /*
@@ -75,29 +75,6 @@ function Thinking({ label = 'Yapay zekâ çalışıyor' }: { label?: string }) {
       {label}… Uzun dosyalarda bir iki dakika sürebilir.
     </div>
   );
-}
-
-const ANALYSIS_KEY = 'timay-analiz';
-/** Kullanıcının son seçtiği analiz türü (bu bilgisayarda hatırlanır). */
-export function useAnalysis(): [Analysis, (a: Analysis) => void] {
-  const [a, setA] = useState<Analysis>(() => {
-    try {
-      return localStorage.getItem(ANALYSIS_KEY) === 'derin' ? 'derin' : 'standart';
-    } catch {
-      return 'standart';
-    }
-  });
-  return [
-    a,
-    (v) => {
-      setA(v);
-      try {
-        localStorage.setItem(ANALYSIS_KEY, v);
-      } catch {
-        /* yok say */
-      }
-    },
-  ];
 }
 
 /** Bekleme göstergesi: derin analizde 10 ajan şeridi, standartta kısa yazıyor göstergesi. */
