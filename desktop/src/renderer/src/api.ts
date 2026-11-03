@@ -29,6 +29,8 @@ export interface User {
   can_finance: number;
   can_approve: number;
   all_cases: number;
+  is_ceo: number;
+  must_change_password: number;
 }
 
 export interface CaseSummary {

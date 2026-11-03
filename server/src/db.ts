@@ -637,6 +637,8 @@ function migrate(db: DB) {
     db.exec('ALTER TABLE users ADD COLUMN can_approve INTEGER NOT NULL DEFAULT 1');
     db.exec("UPDATE users SET can_approve = 0 WHERE role = 'stajyer'");
   }
+  if (!userColumns.includes('is_ceo')) db.exec('ALTER TABLE users ADD COLUMN is_ceo INTEGER NOT NULL DEFAULT 0');
+  if (!userColumns.includes('must_change_password')) db.exec('ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0');
   if (!userColumns.includes('all_cases')) db.exec('ALTER TABLE users ADD COLUMN all_cases INTEGER NOT NULL DEFAULT 1');
 
   const contractColumns = (db.prepare('PRAGMA table_info(contracts)').all() as { name: string }[]).map((c) => c.name);

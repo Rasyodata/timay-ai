@@ -16,6 +16,7 @@ import { SearchView } from './Search';
 import { NotificationBell } from './Notifications';
 import { ContractGroupView } from './ContractGroups';
 import { DashboardView } from './Dashboard';
+import { CeoView, ChangePasswordDialog, roleTitle } from './Ceo';
 import { DeadlinesView } from './Deadlines';
 import { EstatesView, EstateView } from './Estates';
 import { EnforcementFileView, EnforcementView } from './Enforcement';
@@ -34,6 +35,8 @@ applyTheme();
 
 export type View =
   | { name: 'dashboard' }
+  | { name: 'ceo' }
+  | { name: 'lawyer-home' }
   | { name: 'cases' }
   | { name: 'case'; id: number; tab?: string }
   | { name: 'petition'; id: number; review?: boolean }
@@ -87,6 +90,7 @@ export function App() {
   return (
     <Shell
       user={user}
+      onUser={setUser}
       onLogout={() => {
         setToken(null);
         setUser(null);
@@ -257,6 +261,7 @@ const NAV: { section: string; items: { name: View['name']; label: string; icon: 
   {
     section: 'Yönetim',
     items: [
+      { name: 'ceo', label: 'Yönetim paneli', icon: 'chart' },
       { name: 'finance', label: 'Muhasebe', icon: 'wallet' },
       { name: 'team', label: 'Ekip ve yetkiler', icon: 'users' },
       { name: 'backup', label: 'Yedekleme', icon: 'shield' },
@@ -276,11 +281,13 @@ const PARENT: Partial<Record<View['name'], View['name']>> = {
   client: 'clients',
   'consultancy-client': 'consultancy',
   estate: 'estates',
+  'lawyer-home': 'dashboard',
 };
 
-function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
+function Shell({ user, onLogout, onUser }: { user: User; onLogout: () => void; onUser: (u: User) => void }) {
   const [view, setView] = useState<View>({ name: 'dashboard' });
   const [gate, setGate] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   useDailyBackup(user);
   const go: Go = (v) => {
@@ -304,7 +311,18 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
   let content: ReactNode;
   switch (view.name) {
     case 'dashboard':
+      // CEO'nun ana sayfası yönetim panelidir: bütün avukatların yaptıkları kayan şeritte ve iş zekâsı ekranında.
+      content = user.is_ceo ? (
+        <CeoView user={user} go={go} onLawyerHome={() => go({ name: 'lawyer-home' })} />
+      ) : (
+        <DashboardView user={user} go={go} />
+      );
+      break;
+    case 'lawyer-home':
       content = <DashboardView user={user} go={go} />;
+      break;
+    case 'ceo':
+      content = <CeoView user={user} go={go} />;
       break;
     case 'cases':
       content = <CasesView go={go} />;
@@ -421,7 +439,14 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
         {NAV.map((group) => (
           <div key={group.section} className="nav-group">
             <div className="nav-section">{group.section}</div>
-            {group.items.filter((item) => (item.name !== 'finance' || user.can_finance) && (item.name !== 'backup' || user.is_admin)).map((item) => (
+            {group.items
+              .filter(
+                (item) =>
+                  (item.name !== 'finance' || user.can_finance) &&
+                  (item.name !== 'backup' || user.is_admin) &&
+                  (item.name !== 'ceo' || user.is_ceo || user.is_admin),
+              )
+              .map((item) => (
               <button
                 key={item.name}
                 className={`nav-item ${active === item.name ? 'active' : ''}`}
@@ -437,12 +462,15 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
         <button className="version-link" onClick={showScreensaver} title="Modülleri tanıtan ekranı aç">
           <Icon name="spark" /> Tanıtım ekranı
         </button>
+        <button className="version-link" onClick={() => setPasswordOpen(true)} title="Kendi şifrenizi değiştirin">
+          <Icon name="shield" /> Şifremi değiştir
+        </button>
         <VersionLink />
         <div className="me">
           <span className="avatar">{user.name.slice(0, 1).toLocaleUpperCase('tr')}</span>
           <span className="me-text">
             <strong>{user.name}</strong>
-            <span>{user.role === 'avukat' ? 'Avukat' : 'Stajyer'}</span>
+            <span title={roleTitle(user)}>{user.is_ceo ? 'CEO' : roleTitle(user)}</span>
           </span>
           {Boolean(user.is_admin) && (
             <button className={`ghost ${view.name === 'settings' ? 'active' : ''}`} onClick={() => setGate(true)} title="Sistem ayarları">
@@ -462,6 +490,16 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
         </div>
       </main>
       <Screensaver go={go} />
+      {(Boolean(user.must_change_password) || passwordOpen) && (
+        <ChangePasswordDialog
+          user={user}
+          onDone={(u) => {
+            setPasswordOpen(false);
+            onUser(u);
+          }}
+          onCancel={() => setPasswordOpen(false)}
+        />
+      )}
       {gate && (
         <SettingsGate
           user={user}
