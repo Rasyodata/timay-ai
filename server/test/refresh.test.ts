@@ -3,6 +3,7 @@ import { beforeEach, describe, it } from 'node:test';
 import * as auth from '../src/auth.ts';
 import * as cases from '../src/cases.ts';
 import * as contracts from '../src/contracts.ts';
+import * as enforcement from '../src/enforcement.ts';
 import { openDb, type DB } from '../src/db.ts';
 import { ApiError } from '../src/errors.ts';
 import * as petitions from '../src/petitions.ts';
@@ -46,5 +47,24 @@ describe('Güncelle: analizi yeniden çalıştırma', () => {
     assert.equal(all.changed.length, 0, 'değişiklik yoksa listede görünmez');
     assert.throws(() => refresh.refresh(db, b, 'contract', k.id), ApiError);
     assert.throws(() => refresh.refresh(db, a, 'dosya', k.id), ApiError);
+  });
+
+  it('icra dosyasını ajanlarla analiz eder; derin analiz yapay zekâ yoksa standarda düşer', async () => {
+    const f = enforcement.createFile(db, a, { debtor: 'Borçlu Ltd.', kind: 'ilamsiz', principal: 50000, startDate: '2024-01-10', status: 'itiraz' }) as { id: number };
+    const r = await refresh.refreshWithAnalysis(db, a, 'icra', f.id, { analysis: 'derin' }, null);
+    assert.equal(r.analysis, 'standart');
+    assert.match(r.note ?? '', /yapay zekâ/);
+    const byKey = new Map(r.current.issues.map((i) => [i.key, i]));
+    assert.equal(byKey.get('itiraz')?.agent, 'karsi');
+    assert.equal(byKey.get('haciz-sure')?.agent, 'sure');
+    assert.equal(byKey.get('borclu-tc')?.agent, 'hakim');
+    const c = cases.createCase(db, a, { title: 'Kira', area: 'kira' }) as { id: number };
+    const model = async () => ({ model: 't', text: JSON.stringify({ agents: [{ id: 'sure', findings: [{ level: 'kritik', text: 'Tahliye için ihtar süresi kaçabilir.', basis: 'TBK m.315', quote: '' }] }] }) });
+    const deep = await refresh.refreshWithAnalysis(db, a, 'case', c.id, { analysis: 'derin' }, model);
+    assert.equal(deep.analysis, 'derin');
+    assert.ok(deep.current.issues.some((i) => i.ai && i.agent === 'sure' && i.level === 'yuksek'));
+    assert.ok(deep.current.issues.every((i) => i.agent));
+    const again = await refresh.refreshWithAnalysis(db, a, 'case', c.id, {}, null);
+    assert.equal(again.changes.added.length + again.changes.resolved.length, 0, 'yapay zekâ bulguları farka girmez');
   });
 });

@@ -3,6 +3,7 @@ import { downloadBase64, ExportButtons } from './Export';
 import { api, ENFORCEMENT_KIND_LABEL, ENFORCEMENT_STATUS_LABEL, type CaseSummary, type EnforcementFile } from './api';
 import { InsightsPanel } from './Insights';
 import type { Go } from './App';
+import { RefreshBar } from './Refresh';
 import { Card, Empty, ErrorText, Field, formatDate, formatTL, Icon, PageHeader, Stat, Tabs, today, useAsync } from './ui';
 
 const ACTIONS: [string, string][] = [
@@ -601,6 +602,7 @@ export function EnforcementFileView({ id, go, initialTab }: { id: number; go: Go
           </select>
         }
       />
+      <RefreshBar entity="icra" id={data.id} />
       <div className="stats">
         <Stat icon="wallet" label="Asıl alacak" value={formatTL(data.principal_kurus)} />
         <Stat icon="trend" label={data.interest_type === 'yasal' ? 'İşlemiş faiz (yasal)' : `İşlemiş faiz (%${data.interest_rate} yıllık)`} value={formatTL(data.interest_kurus)} tone="amber" />

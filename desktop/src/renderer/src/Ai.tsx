@@ -2,6 +2,7 @@ import { Fragment, useEffect, useRef, useState, type FormEvent, type ReactNode }
 import { api } from './api';
 import type { Go } from './App';
 import { ClaudeConnect } from './ClaudeConnect';
+import { AgentStrip, AnalysisSwitch, DisciplineScreen, DOC_KIND_OPTIONS, useAnalysis, type Analysis, type Side } from './Disciplines';
 import { Card, Empty, ErrorText, Field, formatDate, Icon, PageHeader, Stat, Tabs, useAsync } from './ui';
 
 /*
@@ -12,6 +13,7 @@ import { Card, Empty, ErrorText, Field, formatDate, Icon, PageHeader, Stat, Tabs
 interface Status {
   enabled: boolean;
   model: string;
+  assistant?: string;
   modes: { key: string; label: string; hint: string }[];
 }
 interface ChatSummary {
@@ -31,7 +33,7 @@ interface Chat {
   contract_id: number | null;
   case_title: string;
   contract_title: string;
-  messages: { id: number; role: 'user' | 'assistant'; content: string; created_at: string }[];
+  messages: { id: number; role: 'user' | 'assistant'; content: string; created_at: string; analysis?: Analysis; ms?: number }[];
 }
 
 let statusCache: Status | null = null;
@@ -75,6 +77,11 @@ function Thinking({ label = 'Yapay zekâ çalışıyor' }: { label?: string }) {
   );
 }
 
+/** Bekleme göstergesi: derin analizde 10 ajan şeridi, standartta kısa yazıyor göstergesi. */
+function Working({ analysis, label }: { analysis: Analysis; label: string }) {
+  return analysis === 'derin' ? <AgentStrip label={`${label} · Derin Analiz`} /> : <Thinking label={label} />;
+}
+
 /** Claude'un yazdığı basit Markdown'ı (başlık, madde, kalın) okunur hâle getirir. */
 export function RichText({ text }: { text: string }) {
   const inline = (s: string) => s.split(/(\*\*[^*]+\*\*)/g).map((p, i) => (p.startsWith('**') && p.endsWith('**') ? <strong key={i}>{p.slice(2, -2)}</strong> : <Fragment key={i}>{p}</Fragment>));
@@ -107,26 +114,28 @@ function CopyButton({ text }: { text: string }) {
 
 /* ---------- Ana sayfa ---------- */
 
-type AiTab = 'asistan' | 'infaz' | 'ictihat' | 'claude';
+type AiTab = 'asistan' | 'ajan' | 'infaz' | 'ictihat' | 'claude';
 
 export function AiView({ go, chatId, tab: initialTab }: { go: Go; chatId?: number; tab?: string }) {
   const status = useAiStatus();
   const [tab, setTab] = useState<AiTab>((initialTab as AiTab) ?? 'asistan');
   return (
     <div className="page">
-      <PageHeader title="Yapay zekâ" subtitle={status?.enabled ? `Claude (${status.model}) bağlı · çıktılar taslaktır, avukat kontrolü gerekir` : 'Claude ile hukuk asistanı, dilekçe, sözleşme, içtihat ve infaz hesabı'} />
+      <PageHeader title="Yapay zekâ" subtitle={status?.enabled ? `${status.assistant ?? 'Timay Asistanı'} bağlı · çıktılar taslaktır, avukat kontrolü gerekir` : 'Timay Asistanı: hukuk asistanı, 10 ajanlı kontrol, dilekçe, sözleşme, içtihat ve infaz hesabı'} />
       {status && !status.enabled && <AiOff />}
       <Tabs
         value={tab}
         onChange={setTab}
         items={[
           ['asistan', 'Asistan'],
+          ['ajan', '10 Ajan Kontrolü'],
           ['ictihat', 'İçtihat değerlendir'],
           ['infaz', 'İnfaz hesabı'],
           ['claude', 'Claude hesabıma bağla'],
         ]}
       />
       {tab === 'asistan' && <Assistant go={go} initialId={chatId} status={status} />}
+      {tab === 'ajan' && <AgentTab />}
       {tab === 'ictihat' && <DecisionTab />}
       {tab === 'infaz' && <InfazTab />}
       {tab === 'claude' && <ClaudeConnect />}
@@ -144,11 +153,14 @@ function Assistant({ go, initialId, status }: { go: Go; initialId?: number; stat
   const list = useAsync(() => api<ChatSummary[]>('/ai/chats'), []);
   const [active, setActive] = useState<number | null>(initialId ?? null);
   const [creating, setCreating] = useState(false);
-  const chats = list.data ?? [];
+  const [q, setQ] = useState('');
+  const all = list.data ?? [];
+  const needle = q.trim().toLocaleLowerCase('tr');
+  const chats = needle ? all.filter((c) => `${c.title} ${c.case_title ?? ''} ${c.contract_title ?? ''}`.toLocaleLowerCase('tr').includes(needle)) : all;
 
   useEffect(() => {
-    if (active === null && chats.length) setActive(chats[0].id);
-    if (list.data && !chats.length) setCreating(true);
+    if (active === null && all.length) setActive(all[0].id);
+    if (list.data && !all.length) setCreating(true);
   }, [list.data]);
 
   return (
@@ -162,7 +174,8 @@ function Assistant({ go, initialId, status }: { go: Go; initialId?: number; stat
           </button>
         }
       >
-        {chats.length === 0 && <p className="muted small">Henüz sohbet yok.</p>}
+        {all.length > 3 && <input className="ai-chat-search" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sohbet ara…" />}
+        {chats.length === 0 && <p className="muted small">{needle ? 'Eşleşen sohbet yok.' : 'Henüz sohbet yok.'}</p>}
         <ul className="ai-chat-list">
           {chats.map((c) => (
             <li
@@ -192,7 +205,7 @@ function Assistant({ go, initialId, status }: { go: Go; initialId?: number; stat
               setActive(c.id);
               list.reload();
             }}
-            onCancel={chats.length ? () => setCreating(false) : undefined}
+            onCancel={all.length ? () => setCreating(false) : undefined}
           />
         ) : active ? (
           <ChatPane
@@ -289,6 +302,7 @@ function ChatPane({ id, go, enabled, onChanged, onDeleted }: { id: number; go: G
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useAnalysis();
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => {
     end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -300,7 +314,7 @@ function ChatPane({ id, go, enabled, onChanged, onDeleted }: { id: number; go: G
     setBusy(true);
     setErr(null);
     try {
-      setData(await api<Chat>(`/ai/chats/${id}/messages`, { body: { content } }));
+      setData(await api<Chat>(`/ai/chats/${id}/messages`, { body: { content, analysis } }));
       setText('');
       onChanged();
     } catch (ex) {
@@ -352,15 +366,23 @@ function ChatPane({ id, go, enabled, onChanged, onDeleted }: { id: number; go: G
             {m.role === 'assistant' ? <RichText text={m.content} /> : <div className="ai-text">{m.content}</div>}
             {m.role === 'assistant' && (
               <div className="ai-msg-actions">
+                <span className="ai-msg-meta">
+                  {m.analysis && <span className={m.analysis}>{m.analysis === 'derin' ? 'Derin Analiz · 10 ajan' : 'Standart Analiz'}</span>}
+                  {m.ms != null && <span>⏱ {Math.max(1, Math.round(m.ms / 1000))} sn</span>}
+                </span>
                 <CopyButton text={m.content} />
               </div>
             )}
           </div>
         ))}
-        {busy && <Thinking label="Yazıyor" />}
+        {busy && <Working analysis={analysis} label="Timay Asistanı yazıyor" />}
         <div ref={end} />
       </div>
       <ErrorText error={err} />
+      <div className="ai-input-bar">
+        <AnalysisSwitch value={analysis} onChange={setAnalysis} compact />
+        <span className="muted small">{analysis === 'derin' ? 'Derin Analiz: 10 ajan her konuyu ayrı denetler, daha uzun sürer.' : 'Standart Analiz: hızlı yanıt.'}</span>
+      </div>
       <form
         className="ai-input"
         onSubmit={(e) => {
@@ -386,6 +408,102 @@ function ChatPane({ id, go, enabled, onChanged, onDeleted }: { id: number; go: G
         </button>
       </form>
     </Card>
+  );
+}
+
+/* ---------- 10 ajan kontrolü: kendi belgemiz ya da karşı tarafın dilekçesi / kararı ---------- */
+
+function AgentTab() {
+  const { cases } = useOptions();
+  const status = useAiStatus();
+  const [caseId, setCaseId] = useState('');
+  const [title, setTitle] = useState('');
+  const [text, setText] = useState('');
+  const [side, setSide] = useState<Side>('biz');
+  const [kind, setKind] = useState('');
+  const [analysis, setAnalysis] = useAnalysis();
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="grid-2">
+      <Card title="Metni 10 ajana incelet">
+        <form
+          className="form-grid"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (text.trim()) setOpen(true);
+          }}
+        >
+          <Field label="Bu metin kimin?">
+            <select value={side} onChange={(e) => setSide(e.target.value as Side)}>
+              <option value="biz">Bizim belgemiz (dilekçe, ihtarname…)</option>
+              <option value="karsi">Karşı tarafın dilekçesi / kararı</option>
+            </select>
+          </Field>
+          <Field label="Belge türü">
+            <select value={kind} onChange={(e) => setKind(e.target.value)}>
+              <option value="">Otomatik bul</option>
+              {DOC_KIND_OPTIONS.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Dava dosyası (isteğe bağlı)">
+            <select value={caseId} onChange={(e) => setCaseId(e.target.value)}>
+              <option value="">Dosya seçilmedi</option>
+              {cases.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Başlık (isteğe bağlı)">
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ör. Davalı cevap dilekçesi" />
+          </Field>
+          <Field label="Metin" wide>
+            <textarea value={text} onChange={(e) => setText(e.target.value)} rows={12} required placeholder="Dilekçeyi, ihtarnameyi ya da karşı tarafın dilekçesini / kararı buraya yapıştırın." />
+          </Field>
+          <div className="form-actions">
+            <AnalysisSwitch value={analysis} onChange={setAnalysis} aiEnabled={status?.enabled} />
+            <button className="primary" disabled={!text.trim()}>
+              <Icon name="shield" /> 10 ajanı çalıştır
+            </button>
+          </div>
+        </form>
+      </Card>
+      <Card title="Ajanlar neye bakar?">
+        <p className="muted small">
+          Her ajan metni kendi gözüyle okur ve neyi kontrol ettiğini ekranda adım adım gösterir. Standart Analiz kurallarla anında çalışır. Derin Analiz’de yapay zekâ da her ajanın gözüyle okur
+          {status && !status.enabled ? ' (yapay zekâ bağlanınca açılır; şimdilik standart yapılır)' : ''}.
+        </p>
+        <ol className="ajan-legend small">
+          <li><strong>Avukat:</strong> haklar tam istendi mi</li>
+          <li><strong>Savcı:</strong> ceza boyutu</li>
+          <li><strong>Hâkim:</strong> usul ve şekil şartları</li>
+          <li><strong>Karşı Taraf:</strong> nereden saldırılır</li>
+          <li><strong>Bilirkişi:</strong> tutar ve hesaplar</li>
+          <li><strong>Süre:</strong> zamanaşımı, arabuluculuk</li>
+          <li><strong>Delil:</strong> ispat ve ekler</li>
+          <li><strong>Mevzuat:</strong> madde var mı, değişti mi</li>
+          <li><strong>İçtihat:</strong> Yargıtay künyeleri arşivde mi</li>
+          <li><strong>Baş Ajan:</strong> hepsini birleştirir, puan verir</li>
+        </ol>
+      </Card>
+      {open && (
+        <DisciplineScreen
+          body={text}
+          title={title || (side === 'karsi' ? 'Karşı taraf belgesi' : 'Belge')}
+          caseId={caseId ? Number(caseId) : null}
+          initialKind={kind || undefined}
+          initialAnalysis={analysis}
+          initialSide={side}
+          allowSide
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </div>
   );
 }
 
@@ -440,13 +558,15 @@ function DecisionTab() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<DecisionResult | null>(null);
+  const [analysis, setAnalysis] = useAnalysis();
+  const [agents, setAgents] = useState(false);
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setErr(null);
     setResult(null);
     try {
-      setResult(await api<DecisionResult>('/ai/classify-decision', { body: { caseId: Number(caseId), title, text } }));
+      setResult(await api<DecisionResult>('/ai/classify-decision', { body: { caseId: Number(caseId), title, text, analysis } }));
     } catch (ex) {
       setErr((ex as Error).message);
     } finally {
@@ -474,14 +594,19 @@ function DecisionTab() {
             <textarea value={text} onChange={(e) => setText(e.target.value)} rows={12} required placeholder="Karar metnini buraya yapıştırın." />
           </Field>
           <div className="form-actions">
+            <AnalysisSwitch value={analysis} onChange={setAnalysis} compact />
             <button className="primary" disabled={busy}>
               Değerlendir
+            </button>
+            <button type="button" className="ghost" disabled={!text.trim()} onClick={() => setAgents(true)} title="Kararı 10 ajanla inceleyin">
+              10 ajanla incele
             </button>
           </div>
         </form>
         <ErrorText error={err} />
       </Card>
-      <Card title="Sonuç">{busy ? <Thinking /> : result ? <DecisionResultView r={result} /> : <p className="muted small">Dosyayı seçip kararı yapıştırın.</p>}</Card>
+      {agents && <DisciplineScreen body={text} title={title || 'Karar'} caseId={caseId ? Number(caseId) : null} initialAnalysis={analysis} initialSide="karsi" allowSide onClose={() => setAgents(false)} />}
+      <Card title="Sonuç">{busy ? <Working analysis={analysis} label="Karar inceleniyor" /> : result ? <DecisionResultView r={result} /> : <p className="muted small">Dosyayı seçip kararı yapıştırın.</p>}</Card>
     </div>
   );
 }
@@ -691,13 +816,17 @@ export function CaseAiTab({ caseId, go }: { caseId: number; go: Go }) {
   const [instructions, setInstructions] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [done, setDone] = useState<{ petition: { id: number; title: string }; notes: string } | null>(null);
+  const [done, setDone] = useState<{ petition: { id: number; title: string; body?: string; versions?: { body: string }[] }; notes: string } | null>(null);
+  const [analysis, setAnalysis] = useAnalysis();
+  const [agents, setAgents] = useState(false);
   async function draft(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setErr(null);
     try {
-      setDone(await api('/ai/petition-draft', { body: { caseId, kind, instructions } }));
+      const r = await api<{ petition: { id: number; title: string; body?: string; versions?: { body: string }[] }; notes: string }>('/ai/petition-draft', { body: { caseId, kind, instructions, analysis } });
+      setDone(r);
+      setAgents(true);
     } catch (ex) {
       setErr((ex as Error).message);
     } finally {
@@ -730,12 +859,24 @@ export function CaseAiTab({ caseId, go }: { caseId: number; go: Go }) {
               <textarea rows={4} value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Ör. Fazlaya ilişkin haklar saklı tutulsun, belirsiz alacak davası olarak açılsın, ihtiyati haciz de istensin." />
             </Field>
             <div className="form-actions">
+              <AnalysisSwitch value={analysis} onChange={setAnalysis} compact />
               <button className="primary" disabled={busy || !status?.enabled}>
                 Taslağı yaz
               </button>
             </div>
           </form>
-          {busy && <Thinking label="Dilekçe yazılıyor" />}
+          {busy && <Working analysis={analysis} label="Dilekçe yazılıyor" />}
+          {agents && done && (
+            <DisciplineScreen
+              body={done.petition.body ?? done.petition.versions?.[0]?.body ?? ''}
+              title={done.petition.title}
+              caseId={caseId}
+              initialAnalysis={analysis}
+              onClose={() => setAgents(false)}
+              onContinue={() => go({ name: 'petition', id: done.petition.id })}
+              continueLabel="Dilekçeyi aç"
+            />
+          )}
           <ErrorText error={err} />
           {done && (
             <div className="ai-result">
@@ -748,9 +889,12 @@ export function CaseAiTab({ caseId, go }: { caseId: number; go: Go }) {
                   <RichText text={done.notes} />
                 </>
               )}
-              <button className="primary" onClick={() => go({ name: 'petition', id: done.petition.id })}>
-                Dilekçeyi aç
-              </button>
+              <div className="row">
+                <button className="primary" onClick={() => go({ name: 'petition', id: done.petition.id })}>
+                  Dilekçeyi aç
+                </button>
+                <button onClick={() => setAgents(true)}>10 ajanla kontrol et</button>
+              </div>
             </div>
           )}
         </Card>

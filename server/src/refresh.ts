@@ -3,7 +3,11 @@ import { assertCaseVisible, caseVisibility, getCase } from './cases.ts';
 import { combinedRisk, getPlaybook, type Side } from './clm.ts';
 import { getGroup } from './contractgroups.ts';
 import type { DB } from './db.ts';
-import { reviewDocument } from './disciplines.ts';
+import { caseContext } from './ai.ts';
+import type { AiModel } from './claude.ts';
+import { DEEP_UNAVAILABLE, deepAgentFindings, reviewDocument } from './disciplines.ts';
+import { account } from './enforcement.ts';
+import { QUERY_KINDS } from './icra.ts';
 import { ApiError } from './errors.ts';
 
 /*
@@ -13,15 +17,37 @@ import { ApiError } from './errors.ts';
  */
 
 /** Analiz kurallarının sürümü. Kurallar değiştiğinde artırılır; eski analizler "güncel değil" olur. */
-export const ENGINE = '2026.10.31-2';
+export const ENGINE = '2026.11.03-1';
 
-export type Entity = 'case' | 'contract' | 'group';
+export type Entity = 'case' | 'contract' | 'group' | 'icra';
 export type Level = 'yuksek' | 'orta' | 'dusuk';
+const ENTITIES: Entity[] = ['case', 'contract', 'group', 'icra'];
 
 export interface Issue {
   key: string;
   level: Level;
   text: string;
+  /** Bulguyu üstlenen ajan (avukat, savci, hakim, karsi, bilirkisi, sure, delil, mevzuat, ictihat). */
+  agent?: string;
+  /** Derin analizde yapay zekânın bulduğu. */
+  ai?: boolean;
+  basis?: string;
+}
+
+const AGENT_RULES: [string, RegExp][] = [
+  ['savci', /suç|ceza(?!i şart)|tck|şikâyet süresi/],
+  ['ictihat', /yargıtay|içtihat|emsal|karar arşiv/],
+  ['karsi', /^aleyhte|aleyhte|karşı taraf|itiraz|tek taraflı|cayma/],
+  ['sure', /süre|zamanaşım|gecik|vade|bitiş|duruşma|tebli|hareketsiz|tarih|arabulucu|yenileme|fesih bildirimi/],
+  ['bilirkisi', /tutar|faiz|hesap|bedel|ödeme|harç|masraf|alacak|tl\b|kur farkı|cezai şart/],
+  ['delil', /delil|belge|sorgu|tutanak|ispat|(?<![a-zçğıöşü])ek[- ]?\d|imza|fotoğraf/],
+  ['mevzuat', /kanun|madde|mevzuat|tbk|hmk|iik|tmk|ttk/],
+  ['hakim', /mahkeme|usul|yetki|görev|esas numarası|kimlik|adres|vekâlet|vekil|taraflar|şekil/],
+];
+/** Her bulgunun hangi ajanın işi olduğu (anahtar kelimelerle). */
+export function agentOf(issue: Pick<Issue, 'key' | 'text'>) {
+  const t = `${issue.key} ${issue.text}`.toLocaleLowerCase('tr');
+  return AGENT_RULES.find(([, p]) => p.test(t))?.[0] ?? 'avukat';
 }
 
 export interface Analysis {
@@ -89,7 +115,7 @@ export function analyzeCase(db: DB, user: User, id: number): Analysis {
   const docs = (db.prepare('SELECT COUNT(*) AS n FROM case_documents WHERE case_id = ?').get(id) as { n: number }).n;
   if (docs === 0) add('belge', 'dusuk', 'Dosyaya hiç belge (delil, tebligat) yüklenmemiş.');
 
-  // Her dilekçenin son sürümü 8 disiplinle yeniden incelenir.
+  // Her dilekçenin son sürümü 10 ajanla yeniden incelenir.
   const petitions = db
     .prepare(
       `SELECT p.id, p.title, p.status, (SELECT body FROM petition_versions v WHERE v.petition_id = p.id ORDER BY version DESC LIMIT 1) AS body
@@ -196,6 +222,46 @@ function analyzeGroup(db: DB, user: User, id: number): Analysis {
   };
 }
 
+// ---------------------------------------------------------------- icra dosyası
+
+function analyzeIcra(db: DB, user: User, id: number, now = today()): Analysis {
+  const f = db.prepare('SELECT * FROM enforcement_files WHERE id = ? AND office_id = ?').get(id, user.office_id) as Record<string, string | number | null> | undefined;
+  if (!f) throw new ApiError(404, 'İcra dosyası bulunamadı.');
+  const actions = db.prepare('SELECT id, date, action, amount_kurus, note FROM enforcement_actions WHERE file_id = ?').all(id) as { id: number; date: string; action: string; amount_kurus: number; note: string }[];
+  const queries = db.prepare('SELECT kind, date, found FROM enforcement_queries WHERE file_id = ? ORDER BY date DESC').all(id) as { kind: string; date: string; found: number }[];
+  const issues: Issue[] = [];
+  const add = (key: string, level: Level, text: string, agent: string, basis?: string) => issues.push({ key, level, text, agent, basis });
+  const days = (d: string) => Math.floor((Date.parse(now) - Date.parse(d)) / 86_400_000);
+  const closed = f.status === 'tahsil' || f.status === 'kapandi';
+  const kind = String(f.kind);
+  if (!String(f.debtor_id_no ?? '').trim()) add('borclu-tc', 'orta', 'Borçlunun T.C. kimlik / vergi numarası girilmemiş; sorgular ve haciz yapılamaz.', 'hakim', 'İİK m.58');
+  if (!String(f.debtor_address ?? '').trim()) add('borclu-adres', 'orta', 'Borçlu adresi yok; ödeme emri tebliğ edilemez.', 'hakim', 'Tebligat K. m.21');
+  if (!String(f.file_no ?? '').trim()) add('dosya-no', 'dusuk', 'İcra dosya (esas) numarası girilmemiş.', 'hakim');
+  if (!Number(f.principal_kurus)) add('asil', 'yuksek', 'Asıl alacak tutarı girilmemiş; hesap yapılamaz.', 'bilirkisi');
+  if (f.interest_type !== 'yasal' && !Number(f.interest_rate)) add('faiz', 'orta', 'Faiz oranı 0; faiz istenmiyorsa bilinçli bir tercih olmalı.', 'bilirkisi', '3095 s. K.');
+  if (kind === 'ilamli' && !f.case_id) add('ilam', 'orta', 'İlamlı takip ama dava dosyasına bağlanmamış; ilam ve kesinleşme şerhi kontrol edilemiyor.', 'ictihat');
+  if (kind === 'kambiyo' && f.status === 'derdest') add('kambiyo-sure', 'orta', 'Kambiyo takibinde borçlunun itiraz/şikâyet süresi 5 gündür; tebliğ tarihini takip edin.', 'sure', 'İİK m.168');
+  if (f.status === 'itiraz') add('itiraz', 'yuksek', 'Borçlu itiraz etmiş: itirazın kaldırılması 6 ay, itirazın iptali davası 1 yıl içinde açılmalı.', 'karsi', 'İİK m.67, m.68');
+  const hacizler = actions.filter((a) => /haciz/.test(a.action));
+  if (!closed && f.start_date && days(String(f.start_date)) > 365 && !hacizler.length)
+    add('haciz-sure', 'yuksek', 'Takip 1 yıldan eski ve hiç haciz istenmemiş; haciz isteme süresi dolmuş olabilir.', 'sure', 'İİK m.78, m.79');
+  const lastMove = [...actions.map((a) => a.date), ...queries.map((q) => q.date)].sort().pop();
+  if (!closed && lastMove && days(lastMove) > 180) add('hareketsiz', 'orta', `Dosya ${days(lastMove)} gündür hareketsiz; 1 yıl işlem yapılmazsa dosya işlemden kaldırılır.`, 'sure', 'İİK m.78/4');
+  if (!closed) {
+    for (const k of QUERY_KINDS.slice(0, 6)) {
+      const last = queries.find((q) => q.kind === k.key);
+      if (!last) add(`sorgu-${k.key}`, 'dusuk', `${k.label} sorgusu hiç yapılmamış.`, 'delil');
+      else if (days(last.date) > 90) add(`sorgu-${k.key}`, 'dusuk', `${k.label} sorgusu ${days(last.date)} gün önce yapılmış; yenileyin.`, 'delil');
+      else if (last.found && k.action && !actions.some((a) => a.action === k.action)) add(`oneri-${k.key}`, 'orta', `${k.label} sorgusunda kayıt bulundu ama işlem yapılmamış: ${k.hint}`, 'avukat');
+    }
+  }
+  const remaining = Number((account(f as never, actions, now) as { remaining: { toplam: number } }).remaining.toplam ?? 0);
+  if (closed && remaining > 0) add('kalan', 'orta', 'Dosya kapalı görünüyor ama hesapta kalan borç var.', 'bilirkisi');
+  sortIssues(issues);
+  const risk = Math.min(100, issues.reduce((s, i) => s + (i.level === 'yuksek' ? 25 : i.level === 'orta' ? 12 : 3), 0));
+  return { title: `${f.debtor} (${f.file_no || 'icra'})`, risk, band: bandOf(risk), issues, facts: { islem: actions.length, sorgu: queries.length } };
+}
+
 // ---------------------------------------------------------------- kayıt ve karşılaştırma
 
 function analyze(db: DB, user: User, entity: Entity, id: number): Analysis {
@@ -205,11 +271,12 @@ function analyze(db: DB, user: User, entity: Entity, id: number): Analysis {
   }
   if (entity === 'contract') return analyzeContract(db, user, id);
   if (entity === 'group') return analyzeGroup(db, user, id);
+  if (entity === 'icra') return analyzeIcra(db, user, id);
   throw new ApiError(400, 'Bilinmeyen dosya türü.');
 }
 
 function parseEntity(raw: string): Entity {
-  if (raw === 'case' || raw === 'contract' || raw === 'group') return raw;
+  if ((ENTITIES as string[]).includes(raw)) return raw as Entity;
   throw new ApiError(400, 'Bilinmeyen dosya türü.');
 }
 
@@ -225,6 +292,9 @@ function lastRun(db: DB, user: User, entity: Entity, id: number): RunRow | null 
 }
 
 export function compare(before: Analysis | null, after: Analysis) {
+  // Yapay zekâ bulguları (derin analiz) karşılaştırmaya girmez; kurallar aynı kaldıkça fark çıkmaz.
+  before = before && { ...before, issues: before.issues.filter((i) => !i.ai) };
+  after = { ...after, issues: after.issues.filter((i) => !i.ai) };
   const old = new Set((before?.issues ?? []).map((i) => i.key));
   const now = new Set(after.issues.map((i) => i.key));
   // İlk analizde "yeni çıkan" yoktur; hepsi güncel listede görünür.
@@ -235,9 +305,14 @@ export function compare(before: Analysis | null, after: Analysis) {
   };
 }
 
-function run(db: DB, user: User, entity: Entity, id: number) {
+function run(db: DB, user: User, entity: Entity, id: number, extra: Issue[] = []) {
   const previous = lastRun(db, user, entity, id);
   const current = analyze(db, user, entity, id);
+  for (const i of current.issues) i.agent ??= agentOf(i);
+  if (extra.length) {
+    current.issues.push(...extra);
+    sortIssues(current.issues);
+  }
   const info = db
     .prepare('INSERT INTO analysis_runs (office_id, entity, entity_id, engine, risk, band, data, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
     .run(user.office_id, entity, id, ENGINE, current.risk, current.band, JSON.stringify(current), user.id);
@@ -259,6 +334,46 @@ function run(db: DB, user: User, entity: Entity, id: number) {
 /** Güncelle düğmesi: analizi yeniden çalıştırır, saklar, önceki analizle farkı döndürür. */
 export function refresh(db: DB, user: User, rawEntity: string, id: number) {
   return run(db, user, parseEntity(rawEntity), id);
+}
+
+/**
+ * Güncelle, analiz türüyle: standart yalnız kurallar; derin, yapay zekâ bağlıysa dokuz ajanın gözüyle de okur.
+ * Yapay zekâ yoksa ya da hata verirse standart analiz yapılır ve note nedenini söyler.
+ */
+export async function refreshWithAnalysis(db: DB, user: User, rawEntity: string, id: number, input: { analysis?: string } = {}, model: AiModel | null = null) {
+  const entity = parseEntity(rawEntity);
+  const started = Date.now();
+  const done = (r: ReturnType<typeof run>, extra: { analysis: 'standart' | 'derin'; note?: string }) => ({ ...r, ...extra, elapsedMs: Date.now() - started });
+  if (input.analysis !== 'derin') return done(run(db, user, entity, id), { analysis: 'standart' });
+  if (!model) return done(run(db, user, entity, id), { analysis: 'standart', note: DEEP_UNAVAILABLE });
+  const base = analyze(db, user, entity, id);
+  const subjects: Record<Entity, string> = {
+    case: 'İncelenen: bir DAVA DOSYASI (bizim müvekkilimizin dosyası). Her ajan dosyadaki riskleri, eksikleri, süreleri ve stratejiyi değerlendirsin.',
+    contract: 'İncelenen: bir SÖZLEŞME. Her ajan müvekkilimiz açısından riskleri, aleyhe maddeleri, eksik korumaları, süreleri ve hesapları değerlendirsin.',
+    group: 'İncelenen: birden çok sözleşmeden oluşan bir SÖZLEŞME DOSYASI. Her ajan toplu riskleri ve ortak sorunları değerlendirsin.',
+    icra: 'İncelenen: bir İCRA TAKİP DOSYASI (alacaklı vekiliyiz). Her ajan tahsil kabiliyetini, süreleri, usul eksiklerini ve sonraki adımları değerlendirsin.',
+  };
+  let content = '';
+  if (entity === 'case') content = caseContext(db, user, id);
+  else if (entity === 'contract') {
+    const c = db.prepare('SELECT title, kind, side, parties, body FROM contracts WHERE id = ? AND office_id = ?').get(id, user.office_id) as { title: string; kind: string; side: string; parties: string; body: string };
+    content = `<sozlesme baslik="${c.title}" tur="${c.kind}" bizim_taraf="${c.side}" taraflar="${c.parties}">\n${c.body.slice(0, 100000)}\n</sozlesme>`;
+  } else if (entity === 'icra') {
+    const f = db.prepare('SELECT * FROM enforcement_files WHERE id = ? AND office_id = ?').get(id, user.office_id);
+    const actions = db.prepare('SELECT date, action, amount_kurus, note FROM enforcement_actions WHERE file_id = ? ORDER BY date').all(id);
+    content = `<icra_dosyasi>\n${JSON.stringify(f)}\nİşlemler: ${JSON.stringify(actions)}\n</icra_dosyasi>`;
+  } else content = `<sozlesme_dosyasi baslik="${base.title}">\n${base.issues.map((i) => i.text).join('\n')}\n</sozlesme_dosyasi>`;
+  try {
+    const deep = await deepAgentFindings(model, { subject: subjects[entity], content, known: base.issues.map((i) => i.text).join('\n') });
+    const lvl = { kritik: 'yuksek', uyari: 'orta', iyi: 'dusuk' } as const;
+    const extra: Issue[] = deep.findings
+      .filter((f) => f.level !== 'iyi')
+      .map((f, i) => ({ key: `yz-${f.agent}-${i}`, level: lvl[f.level], text: f.text, agent: f.agent, ai: true, basis: f.basis }));
+    return done(run(db, user, entity, id, extra), { analysis: 'derin' });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return done(run(db, user, entity, id), { analysis: 'standart', note: `Derin analiz şu an yapılamadı (${msg}). Standart analiz sonucu gösteriliyor.` });
+  }
 }
 
 /** Son analiz ve program güncellendiği için eskiyip eskimediği. */
@@ -287,6 +402,9 @@ export function refreshAll(db: DB, user: User, input: { entity?: string; entitie
   }
   if (want('group')) {
     for (const r of db.prepare('SELECT id FROM contract_groups WHERE office_id = ?').all(user.office_id) as { id: number }[]) targets.push({ entity: 'group', id: r.id });
+  }
+  if (want('icra')) {
+    for (const r of db.prepare('SELECT id FROM enforcement_files WHERE office_id = ?').all(user.office_id) as { id: number }[]) targets.push({ entity: 'icra', id: r.id });
   }
   const changed: { entity: Entity; id: number; title: string; before: number | null; after: number; added: number; resolved: number }[] = [];
   let added = 0;

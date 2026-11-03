@@ -1,13 +1,17 @@
 /*
- * Çok disiplinli inceleme: bir dilekçe, takip talebi ya da ihtarname cevabı sekiz ayrı gözle
- * okunur. 1–7 her biri kendi bakış açısından bulgu çıkarır; 8. disiplin hepsini birleştirir.
- * Kurallar anında ve ücretsiz çalışır; yapay zekâ bağlandığında her disiplin metni ayrıca okur.
+ * 10 ajanlı inceleme: bir dilekçe, takip talebi, ihtarname ya da karşı tarafın belgesi on ayrı
+ * gözle okunur. 1–9 her biri kendi bakış açısından bulgu çıkarır (avukat, savcı, hâkim, karşı taraf,
+ * bilirkişi, süre, delil, mevzuat, içtihat); 10. ajan (Baş ajan) hepsini birleştirir.
+ * Standart analiz: kurallar anında ve ücretsiz çalışır. Derin analiz: yapay zekâ bağlıysa her ajan
+ * metni ayrıca okur; bağlı değilse standart analiz yapılır ve bunun nedeni söylenir.
  */
 import type { User } from './auth.ts';
 import { getCase } from './cases.ts';
 import { checkCitations } from './citations.ts';
 import type { DB } from './db.ts';
 import { ApiError } from './errors.ts';
+import type { AiModel } from './claude.ts';
+import { findLawByNo, findLawByShort } from './laws.ts';
 import { extractLawRefs } from './teyit.ts';
 
 export type DocKind = 'dava' | 'cevap' | 'icra' | 'ihtar_cevap' | 'ihtarname' | 'itiraz' | 'kanun_yolu';
@@ -26,6 +30,10 @@ export const DOC_KINDS: { id: DocKind; label: string }[] = [
 export interface Finding {
   level: Level;
   text: string;
+  /** Yapay zekâ (derin analiz) bulgusu. */
+  ai?: boolean;
+  /** Yapay zekâ bulgusunda alıntı metinde aynen geçiyor mu. */
+  verified?: boolean;
   /** Neden önemli / dayanağı. */
   basis?: string;
   /** Metinden ilgili kısa parça. */
@@ -54,7 +62,17 @@ export interface DisciplineReview {
     priorities: (Finding & { discipline: string })[];
   };
   ai: boolean;
+  analysis: Analysis;
+  /** Belge kimin: bizim mi, karşı tarafın mı. */
+  side: Side;
+  /** Derin analiz istendiği hâlde yapılamadıysa nedeni. */
+  note?: string;
+  model?: string;
+  elapsedMs?: number;
 }
+
+export type Analysis = 'standart' | 'derin';
+export type Side = 'biz' | 'karsi';
 
 interface CaseInfo {
   area: string;
@@ -213,15 +231,11 @@ function judge(body: string, kind: DocKind, c: CaseInfo | null): Finding[] {
 }
 
 // ---------------------------------------------------------------- 4. Karşı taraf avukatı gözüyle
-function opponent(db: DB, body: string, today: string): Finding[] {
+function opponent(body: string, today: string): Finding[] {
   const t = lower(body);
   const f: Finding[] = [];
   const vague = [...body.matchAll(/\b(?:yaklaşık|civarında|gibi|vs\.?|vb\.?|bir süre|bazı)\b/gi)];
   if (vague.length >= 3) f.push({ level: 'uyari', text: `${vague.length} yerde belirsiz ifade var (yaklaşık, vs., bazı…). Karşı taraf "somutlaştırılmamış" diyecektir.`, basis: 'HMK m.194', quote: quoteOf(body, /\b(?:yaklaşık|civarında|vs\.?|bazı)\b/i) });
-  const cites = checkCitations(db, body);
-  const missing = cites.filter((c) => !c.decisionId);
-  if (missing.length) f.push({ level: 'kritik', text: `${missing.length} Yargıtay kararı arşivde yok; karşı taraf künyeyi çürütebilir.`, quote: missing[0].raw });
-  if (cites.length && !missing.length) f.push({ level: 'iyi', text: `${cites.length} karar atfı arşivle doğrulandı.` });
   const old = dates(body).filter((d) => yearsBetween(d, today) > 5);
   if (old.length && !/zamanaşımı/.test(t)) f.push({ level: 'uyari', text: `${old[0].split('-').reverse().join('.')} tarihli olay 5 yıldan eski; karşı taraf zamanaşımı itirazı yapabilir.`, basis: 'TBK m.146–147' });
   if (/iddia/.test(t) && !/ispat|delil|ek-?\s*\d/.test(t)) f.push({ level: 'uyari', text: 'İddialar delille eşleştirilmemiş; ispat yükü bizde kalır.', basis: 'TMK m.6, HMK m.190' });
@@ -293,24 +307,100 @@ function evidence(body: string, kind: DocKind, c: CaseInfo | null): Finding[] {
   const exhibits = new Set([...body.matchAll(/ek[- ]?(\d+)/gi)].map((m) => m[1])).size;
   if (c && exhibits > c.documents) f.push({ level: 'uyari', text: `Dilekçede ${exhibits} ek anılıyor, dava dosyasında ${c.documents} belge var. Eksik ekleri yükleyin.` });
   if (c && c.documents === 0 && kind === 'dava') f.push({ level: 'uyari', text: 'Dava dosyasında hiç belge yok; deliller dosyaya eklenmeli.' });
-  const laws = extractLawRefs(body).length;
-  if (!laws) f.push({ level: 'uyari', text: 'Hiç kanun maddesi gösterilmemiş.' });
-  else f.push({ level: 'iyi', text: `${laws} kanun maddesine dayanılmış.` });
+  if (!f.length) f.push({ level: 'iyi', text: 'Deliller gösterilmiş.' });
   return f;
 }
 
-// ---------------------------------------------------------------- 8. Genel değerlendirme
-const DISCIPLINES = [
-  { id: 'avukat', title: 'Avukat gözüyle', lens: 'Müvekkilin bütün hakları istendi mi, aleyhe bir şey yazıldı mı?' },
-  { id: 'savci', title: 'Savcı gözüyle', lens: 'Olayda suç var mı, ceza boyutu müvekkili nasıl etkiler?' },
-  { id: 'hakim', title: 'Hâkim gözüyle', lens: 'Usul ve şekil şartları tam mı, karar verilebilir mi?' },
-  { id: 'karsi', title: 'Karşı taraf avukatı gözüyle', lens: 'Nereden saldırılır, hangi iddia çürütülür?' },
-  { id: 'bilirkisi', title: 'Bilirkişi gözüyle', lens: 'Tutarlar, faiz ve hesaplar tutarlı mı?' },
-  { id: 'sure', title: 'Süre ve dava şartları', lens: 'Arabuluculuk, zamanaşımı, hak düşürücü süreler' },
-  { id: 'delil', title: 'Delil ve ispat', lens: 'Her iddia delille desteklendi mi, ekler tam mı?' },
-] as const;
+// ---------------------------------------------------------------- 8. Mevzuat ajanı
+function legislation(db: DB, officeId: number | null, body: string, kind: DocKind): Finding[] {
+  const f: Finding[] = [];
+  const refs = extractLawRefs(body);
+  if (!refs.length) {
+    f.push({ level: kind === 'icra' || kind === 'ihtar_cevap' ? 'uyari' : 'kritik', text: 'Hiç kanun maddesi gösterilmemiş; hukuki sebepler boş kalıyor.', basis: 'HMK m.119/1-e' });
+    return f;
+  }
+  const changes = officeId
+    ? (db.prepare('SELECT law, articles, title, effective_date FROM law_changes WHERE office_id = ?').all(officeId) as { law: string; articles: string; title: string; effective_date: string }[])
+    : [];
+  let ok = 0;
+  for (const ref of refs) {
+    const law = ref.lawNo ? findLawByNo(ref.lawNo) : findLawByShort(ref.short!);
+    if (!law) {
+      f.push({ level: 'uyari', text: `“${ref.quote}”: bu kanun sistemin listesinde yok, madde elle kontrol edilmeli.`, quote: ref.quote });
+      continue;
+    }
+    if (law.maxArticle && ref.article > law.maxArticle) {
+      f.push({ level: 'kritik', text: `${law.name} ${law.maxArticle} maddedir; ${ref.article}. madde yok.`, quote: ref.quote });
+      continue;
+    }
+    const changed = changes.find(
+      (c) => (findLawByShort(c.law)?.no ?? c.law) === law.no && String(c.articles).split(/[\s,;]+/).map((x) => Number(x.replace(/\D/g, ''))).includes(ref.article),
+    );
+    if (changed) {
+      f.push({ level: 'uyari', text: `${law.short} m.${ref.article} değişmiş: ${changed.title}${changed.effective_date ? ` (${changed.effective_date.split('-').reverse().join('.')})` : ''}. Güncel metne göre kontrol edin.`, quote: ref.quote });
+      continue;
+    }
+    ok++;
+  }
+  if (ok) f.push({ level: 'iyi', text: `${ok} kanun maddesi mevcut ve büronun değişiklik kayıtlarında değişmiş görünmüyor.` });
+  return f;
+}
 
-export function reviewDocument(input: { body: string; kind?: DocKind; title?: string; caseInfo?: CaseInfo | null; db: DB; today?: string }): DisciplineReview {
+// ---------------------------------------------------------------- 9. İçtihat ajanı
+function caseLaw(db: DB, body: string, kind: DocKind): Finding[] {
+  const f: Finding[] = [];
+  const cites = checkCitations(db, body);
+  const missing = cites.filter((c) => !c.decisionId);
+  if (missing.length) f.push({ level: 'kritik', text: `${missing.length} Yargıtay kararı arşivde yok; uydurma ya da yanlış yazılmış olabilir, karşı taraf künyeyi çürütebilir.`, quote: missing[0].raw });
+  const found = cites.length - missing.length;
+  if (found) f.push({ level: 'iyi', text: `${found} karar atfı arşivde bulundu.` });
+  if (!cites.length && (kind === 'dava' || kind === 'cevap' || kind === 'kanun_yolu' || kind === 'itiraz'))
+    f.push({ level: 'uyari', text: 'Hiç Yargıtay kararına dayanılmamış; emsal karar eklemek ikna gücünü artırır.' });
+  if (!f.length) f.push({ level: 'iyi', text: 'Bu belge türünde içtihat atfı zorunlu değil.' });
+  return f;
+}
+
+// ---------------------------------------------------------------- 10. Baş ajan (genel değerlendirme)
+export const AGENTS = [
+  { id: 'avukat', title: 'Avukat Ajanı', lens: 'Müvekkilin bütün hakları istendi mi, aleyhe bir şey yazıldı mı?' },
+  { id: 'savci', title: 'Savcı Ajanı', lens: 'Olayda suç var mı, ceza boyutu müvekkili nasıl etkiler?' },
+  { id: 'hakim', title: 'Hâkim Ajanı', lens: 'Usul ve şekil şartları tam mı, karar verilebilir mi?' },
+  { id: 'karsi', title: 'Karşı Taraf Ajanı', lens: 'Karşı taraf avukatı nereden saldırır, hangi iddia çürütülür?' },
+  { id: 'bilirkisi', title: 'Bilirkişi Ajanı', lens: 'Tutarlar, faiz ve hesaplar tutarlı mı?' },
+  { id: 'sure', title: 'Süre Ajanı', lens: 'Arabuluculuk, zamanaşımı, hak düşürücü süreler, dava şartları' },
+  { id: 'delil', title: 'Delil Ajanı', lens: 'Her iddia delille desteklendi mi, ekler tam mı?' },
+  { id: 'mevzuat', title: 'Mevzuat Ajanı', lens: 'Kanun maddeleri var mı, değişmiş mi, güncel mi?' },
+  { id: 'ictihat', title: 'İçtihat Ajanı', lens: 'Yargıtay kararları arşivde var mı, künyeler doğru mu?' },
+] as const;
+const GENERAL = { no: 10, id: 'genel', title: 'Baş Ajan', lens: 'Dokuz ajanın bulgularını birleştirir, önce neyin düzeltileceğini söyler.' };
+// Ağırlık: hâkim ve süre ajanları usulden ret riski taşıdığı için iki kat sayılır.
+const WEIGHTS = [1, 0.5, 2, 1, 1, 2, 1.5, 1, 1];
+
+/** Dokuz ajanın sonucundan Baş ajanı ve özeti (yeniden) hesaplar. */
+function summarize(review: Omit<DisciplineReview, 'summary'> & { summary?: DisciplineReview['summary'] }): DisciplineReview {
+  const agents = review.disciplines.filter((d) => d.id !== 'genel');
+  for (const d of agents) d.score = score(d.findings);
+  const all = agents.flatMap((d) => d.findings.map((f) => ({ ...f, discipline: d.title })));
+  const critical = all.filter((f) => f.level === 'kritik');
+  const warnings = all.filter((f) => f.level === 'uyari');
+  const overall = Math.round(agents.reduce((s, d, i) => s + d.score * WEIGHTS[i], 0) / WEIGHTS.reduce((a, b) => a + b, 0));
+  const verdict = critical.length >= 3 || overall < 50 ? 'ciddi' : critical.length || overall < 80 ? 'duzeltme' : 'hazir';
+  const verdictLabel =
+    review.side === 'karsi'
+      ? { hazir: 'Karşı tarafın belgesi güçlü', duzeltme: 'Karşı tarafın belgesinde açıklar var', ciddi: 'Karşı tarafın belgesinde ciddi açıklar var' }[verdict]
+      : { hazir: 'Göndermeye hazır', duzeltme: 'Düzeltme gerekli', ciddi: 'Ciddi eksikler var' }[verdict];
+  const generalFindings: Finding[] = [
+    { level: verdict === 'hazir' ? 'iyi' : verdict === 'duzeltme' ? 'uyari' : 'kritik', text: `${verdictLabel}: ${critical.length} kritik, ${warnings.length} uyarı.` },
+    ...critical.slice(0, 5).map((f) => ({ ...f, text: `${f.discipline}: ${f.text}` })),
+  ];
+  return {
+    ...review,
+    disciplines: [...agents, { ...GENERAL, score: overall, findings: generalFindings }],
+    summary: { score: overall, verdict, verdictLabel, critical: critical.length, warnings: warnings.length, priorities: [...critical, ...warnings].slice(0, 8) },
+  };
+}
+
+export function reviewDocument(input: { body: string; kind?: DocKind; title?: string; caseInfo?: CaseInfo | null; db: DB; today?: string; officeId?: number | null; side?: Side }): DisciplineReview {
   const body = input.body ?? '';
   if (!body.trim()) throw new ApiError(400, 'İncelenecek metin boş.');
   const today = input.today ?? new Date().toISOString().slice(0, 10);
@@ -320,47 +410,136 @@ export function reviewDocument(input: { body: string; kind?: DocKind; title?: st
     lawyer(body, kind, c),
     prosecutor(body, kind, today),
     judge(body, kind, c),
-    opponent(input.db, body, today),
+    opponent(body, today),
     expert(body, kind),
     deadlines(body, kind, c, today),
     evidence(body, kind, c),
+    legislation(input.db, input.officeId ?? null, body, kind),
+    caseLaw(input.db, body, kind),
   ];
-  const disciplines: DisciplineResult[] = DISCIPLINES.map((d, i) => ({ no: i + 1, ...d, findings: lists[i], score: score(lists[i]) }));
-  const all = disciplines.flatMap((d) => d.findings.map((f) => ({ ...f, discipline: d.title })));
-  const critical = all.filter((f) => f.level === 'kritik');
-  const warnings = all.filter((f) => f.level === 'uyari');
-  // Ağırlık: hâkim ve süre disiplinleri usulden ret riski taşıdığı için iki kat sayılır.
-  const weights = [1, 0.5, 2, 1, 1, 2, 1.5];
-  const overall = Math.round(disciplines.reduce((s, d, i) => s + d.score * weights[i], 0) / weights.reduce((a, b) => a + b, 0));
-  const verdict = critical.length >= 3 || overall < 50 ? 'ciddi' : critical.length || overall < 80 ? 'duzeltme' : 'hazir';
-  const verdictLabel = { hazir: 'Göndermeye hazır', duzeltme: 'Düzeltme gerekli', ciddi: 'Ciddi eksikler var' }[verdict];
-  const summaryFindings: Finding[] = [
-    { level: verdict === 'hazir' ? 'iyi' : verdict === 'duzeltme' ? 'uyari' : 'kritik', text: `${verdictLabel}: ${critical.length} kritik, ${warnings.length} uyarı.` },
-    ...critical.slice(0, 5).map((f) => ({ ...f, text: `${f.discipline}: ${f.text}` })),
-  ];
-  disciplines.push({ no: 8, id: 'genel', title: 'Genel değerlendirme', lens: 'Yedi disiplinin bulgularını birleştirir, önce neyin düzeltileceğini söyler.', score: overall, findings: summaryFindings });
-  return {
+  const disciplines: DisciplineResult[] = AGENTS.map((d, i) => ({ no: i + 1, ...d, findings: lists[i], score: 0 }));
+  return summarize({
     kind,
     kindLabel: DOC_KINDS.find((k) => k.id === kind)!.label,
     disciplines,
-    summary: {
-      score: overall,
-      verdict,
-      verdictLabel,
-      critical: critical.length,
-      warnings: warnings.length,
-      priorities: [...critical, ...warnings].slice(0, 8),
-    },
     ai: false,
-  };
+    analysis: 'standart',
+    side: input.side === 'karsi' ? 'karsi' : 'biz',
+  });
 }
 
-export function reviewForUser(db: DB, user: User, input: { body?: string; kind?: DocKind; title?: string; caseId?: number | null }) {
-  let caseInfo: CaseInfo | null = null;
-  if (input.caseId) {
-    const c = getCase(db, user, Number(input.caseId));
-    const docs = db.prepare('SELECT COUNT(*) AS n FROM case_documents WHERE case_id = ?').get(c.id) as { n: number };
-    caseInfo = { area: c.area, client: c.client, facts: c.facts, court: c.court, esas_no: c.esas_no, documents: docs.n };
+function caseInfoFor(db: DB, user: User, caseId: number | null | undefined) {
+  if (!caseId) return null;
+  const c = getCase(db, user, Number(caseId));
+  const docs = db.prepare('SELECT COUNT(*) AS n FROM case_documents WHERE case_id = ?').get(c.id) as { n: number };
+  return { area: c.area, client: c.client, facts: c.facts, court: c.court, esas_no: c.esas_no, documents: docs.n } satisfies CaseInfo;
+}
+
+export interface ReviewInput {
+  body?: string;
+  kind?: DocKind;
+  title?: string;
+  caseId?: number | null;
+  side?: Side;
+  analysis?: Analysis;
+}
+
+/** Standart analiz: yalnız kurallar (anında, ücretsiz). */
+export function reviewForUser(db: DB, user: User, input: ReviewInput) {
+  return reviewDocument({ db, body: String(input.body ?? ''), kind: input.kind, title: input.title, caseInfo: caseInfoFor(db, user, input.caseId), officeId: user.office_id, side: input.side });
+}
+
+const AGENT_IDS = AGENTS.map((a) => a.id);
+const DEEP_SCHEMA = {
+  type: 'object',
+  properties: {
+    agents: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', enum: AGENT_IDS },
+          findings: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                level: { type: 'string', enum: ['iyi', 'uyari', 'kritik'] },
+                text: { type: 'string' },
+                basis: { type: 'string' },
+                quote: { type: 'string' },
+              },
+              required: ['level', 'text', 'basis', 'quote'],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ['id', 'findings'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['agents'],
+  additionalProperties: false,
+};
+
+const squash = (s: string) => lower(s).replace(/\s+/g, ' ').trim();
+
+export const DEEP_UNAVAILABLE = 'Derin analiz için yapay zekâ bağlantısı gerekiyor (sunucuya Claude API anahtarı eklenince açılır). Bu sefer standart analiz yapıldı.';
+
+/**
+ * Dokuz ajanın yapay zekâyla okuması (dava dosyası, sözleşme, icra dosyası gibi her tür metin için).
+ * subject: neyin incelendiği ve bakış açısı; known: kuralların zaten bulduğu bulgular (tekrar edilmez).
+ */
+export async function deepAgentFindings(model: AiModel, input: { subject: string; content: string; known: string }) {
+  const lenses = AGENTS.map((a) => `- ${a.id} (${a.title}): ${a.lens}`).join('\n');
+  const r = await model({
+    system: `Sen Türk hukukunda uzman, titiz bir avukatlık bürosunun inceleme kurulusun. Kurul dokuz ajandan oluşur; her ajan yalnız kendi gözüyle okur:\n${lenses}\n\n${input.subject}\nKurallar: Her ajan için 0-4 bulgu yaz; gereksiz bulgu yazma. level: iyi/uyari/kritik. basis: dayanak kanun maddesi ya da yerleşik içtihat (emin değilsen "doğrulanmalı" yaz; numara uydurma). quote: metinden HARFİ HARFİNE kısa bir parça (yoksa boş). text: Türkçe, bir iki cümle. Kurallarla zaten bulunan bulguları tekrar etme.`,
+    messages: [{ role: 'user', content: `${input.content}\n\nKuralların bulduğu bulgular (tekrar etme):\n${input.known || '(yok)'}` }],
+    schema: DEEP_SCHEMA,
+    effort: 'high',
+  });
+  const out = JSON.parse(r.text) as { agents: { id: string; findings: Finding[] }[] };
+  const text = squash(input.content);
+  const findings = out.agents.flatMap((a) =>
+    a.findings.map((f) => ({ ...f, agent: a.id, basis: f.basis || undefined, quote: f.quote || undefined, ai: true, verified: !f.quote || text.includes(squash(f.quote)) })),
+  );
+  return { findings, model: r.model };
+}
+
+/**
+ * Standart ya da derin analiz. Derinde kurallara ek olarak yapay zekâ her ajanın gözüyle metni okur.
+ * Yapay zekâ bağlı değilse ya da hata verirse standart sonuç döner ve note alanı nedenini söyler.
+ */
+export async function reviewWithAnalysis(db: DB, user: User, input: ReviewInput, model: AiModel | null): Promise<DisciplineReview> {
+  const started = Date.now();
+  const caseInfo = caseInfoFor(db, user, input.caseId);
+  const body = String(input.body ?? '');
+  const base = reviewDocument({ db, body, kind: input.kind, title: input.title, caseInfo, officeId: user.office_id, side: input.side });
+  if (input.analysis !== 'derin') return { ...base, elapsedMs: Date.now() - started };
+  if (!model) return { ...base, analysis: 'standart', note: DEEP_UNAVAILABLE, elapsedMs: Date.now() - started };
+  const sideText =
+    base.side === 'karsi'
+      ? 'Bu belge KARŞI TARAFIN belgesidir. Her ajan bu belgenin zayıf noktalarını, çürütülebilecek iddialarını, usul ve süre hatalarını ve bizim cevabımızda kullanacağımız itirazları bulsun. "kritik" = karşı tarafın en büyük açığı.'
+      : 'Bu belge BİZİM belgemizdir (müvekkil adına). Her ajan eksikleri, riskleri ve düzeltilmesi gerekenleri bulsun.';
+  try {
+    const deep = await deepAgentFindings(model, {
+      subject: sideText,
+      content: `${caseInfo ? `<dava_bilgisi>Mahkeme: ${caseInfo.court || '-'} | Alan: ${caseInfo.area || '-'} | Müvekkil: ${caseInfo.client || '-'}\nOlaylar: ${caseInfo.facts.slice(0, 15000) || '-'}</dava_bilgisi>\n\n` : ''}<belge tur="${base.kindLabel}" baslik="${String(input.title ?? '')}">\n${body.slice(0, 120000)}\n</belge>`,
+      known: base.disciplines
+        .filter((d) => d.id !== 'genel')
+        .map((d) => `${d.id}: ${d.findings.map((f) => f.text).join(' | ')}`)
+        .join('\n'),
+    });
+    const disciplines = base.disciplines.map((d) => {
+      const ai = deep.findings.filter((f) => f.agent === d.id).map(({ agent: _a, ...f }) => f);
+      // Yapay zekâ sorun bulduysa kuralların "iyi" notu yanıltmasın.
+      const keep = ai.some((f) => f.level !== 'iyi') ? d.findings.filter((f) => f.level !== 'iyi') : d.findings;
+      return { ...d, findings: [...keep, ...ai] };
+    });
+    return { ...summarize({ ...base, disciplines, ai: true, analysis: 'derin' }), model: deep.model, elapsedMs: Date.now() - started };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ...base, analysis: 'standart', note: `Derin analiz şu an yapılamadı (${msg}). Standart analiz sonucu gösteriliyor.`, elapsedMs: Date.now() - started };
   }
-  return reviewDocument({ db, body: String(input.body ?? ''), kind: input.kind, title: input.title, caseInfo });
 }

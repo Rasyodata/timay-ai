@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from './api';
 import type { Go } from './App';
+import { AGENTS, DisciplineScreen, useAnalysis, type AgentModule, type DisciplineReview } from './Disciplines';
 import { ErrorText, Icon } from './ui';
 
 /*
@@ -8,13 +9,16 @@ import { ErrorText, Icon } from './ui';
  * Program güncellenince eski analizler "güncel değil" görünür; Güncelle'ye basınca farklar listelenir.
  */
 
-export type Entity = 'case' | 'contract' | 'group';
+export type Entity = 'case' | 'contract' | 'group' | 'icra';
 type Level = 'yuksek' | 'orta' | 'dusuk';
 
 interface Issue {
   key: string;
   level: Level;
   text: string;
+  agent?: string;
+  ai?: boolean;
+  basis?: string;
 }
 
 interface RefreshResult {
@@ -23,6 +27,9 @@ interface RefreshResult {
   current: { title: string; risk: number; band: Level; issues: Issue[] };
   previous: { engine: string; at: string; risk: number; band: Level } | null;
   changes: { riskDelta: number; added: Issue[]; resolved: Issue[] };
+  analysis?: 'standart' | 'derin';
+  note?: string;
+  elapsedMs?: number;
 }
 
 interface Status {
@@ -39,7 +46,60 @@ interface AllResult {
 }
 
 const BAND_LABEL: Record<Level, string> = { dusuk: 'Düşük risk', orta: 'Orta risk', yuksek: 'Yüksek risk' };
-const ENTITY_LABEL: Record<Entity, string> = { case: 'Dava', contract: 'Sözleşme', group: 'Sözleşme dosyası' };
+const ENTITY_LABEL: Record<Entity, string> = { case: 'Dava', contract: 'Sözleşme', group: 'Sözleşme dosyası', icra: 'İcra dosyası' };
+const ENTITY_MODULE: Record<Entity, AgentModule> = { case: 'dava', contract: 'sozlesme', group: 'grup', icra: 'icra' };
+
+/** Güncelle sonucunu 10 ajan ekranının diline çevirir: her bulgu kendi ajanının kartına düşer. */
+export function toAgentReview(r: RefreshResult, entity: Entity): DisciplineReview {
+  const lvl = (l: Level) => (l === 'yuksek' ? 'kritik' : 'uyari') as 'kritik' | 'uyari';
+  const disciplines = AGENTS.filter((a) => a.id !== 'genel').map((a, i) => {
+    const mine = r.current.issues.filter((x) => (x.agent ?? 'avukat') === a.id);
+    const findings = mine.length
+      ? mine.map((x) => ({ level: lvl(x.level), text: x.text, basis: x.basis, ai: x.ai }))
+      : [{ level: 'iyi' as const, text: 'Bu ajan sorun bulmadı.' }];
+    const score = Math.max(0, 100 - mine.reduce((n, x) => n + (x.level === 'yuksek' ? 25 : x.level === 'orta' ? 10 : 4), 0));
+    return { no: i + 1, id: a.id, title: a.title, lens: a.lens, score, findings };
+  });
+  const score = 100 - r.current.risk;
+  const critical = r.current.issues.filter((x) => x.level === 'yuksek').length;
+  const verdict = r.current.band === 'yuksek' ? 'ciddi' : r.current.band === 'orta' || critical ? 'duzeltme' : 'hazir';
+  const title = (id?: string) => AGENTS.find((a) => a.id === (id ?? 'avukat'))?.title ?? '';
+  return {
+    kind: entity,
+    kindLabel: `${ENTITY_LABEL[entity]} · ${BAND_LABEL[r.current.band]} (${r.current.risk}/100)`,
+    disciplines: [
+      ...disciplines,
+      {
+        no: 10,
+        id: 'genel',
+        title: 'Baş Ajan',
+        lens: '',
+        score,
+        findings: [
+          { level: verdict === 'hazir' ? 'iyi' : verdict === 'duzeltme' ? 'uyari' : 'kritik', text: `${BAND_LABEL[r.current.band]}: ${r.current.issues.length} bulgu.` },
+          ...(r.changes.added.length ? [{ level: 'uyari' as const, text: `Son analizden beri ${r.changes.added.length} yeni sorun çıktı.` }] : []),
+          ...(r.changes.resolved.length ? [{ level: 'iyi' as const, text: `${r.changes.resolved.length} sorun giderilmiş.` }] : []),
+        ],
+      },
+    ],
+    summary: {
+      score,
+      verdict,
+      verdictLabel: verdict === 'hazir' ? 'Önemli bir sorun yok' : verdict === 'duzeltme' ? 'Dikkat edilecek noktalar var' : 'Acil ilgilenilmesi gerekenler var',
+      critical,
+      warnings: r.current.issues.length - critical,
+      priorities: r.current.issues
+        .filter((x) => x.level !== 'dusuk')
+        .slice(0, 8)
+        .map((x) => ({ level: lvl(x.level), text: x.text, discipline: title(x.agent) })),
+    },
+    ai: r.current.issues.some((x) => x.ai),
+    analysis: r.analysis ?? 'standart',
+    side: 'biz',
+    note: r.note,
+    elapsedMs: r.elapsedMs,
+  };
+}
 
 /** SQLite "YYYY-MM-DD HH:MM:SS" (UTC) → yerel "31.10.2026 14:05". */
 export function when(at: string) {
@@ -77,6 +137,8 @@ export function RefreshBar({ entity, id, onDone }: { entity: Entity; id: number;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [screen, setScreen] = useState(false);
+  const [analysis] = useAnalysis();
 
   useEffect(() => {
     setResult(null);
@@ -85,18 +147,16 @@ export function RefreshBar({ entity, id, onDone }: { entity: Entity; id: number;
       .catch(() => setStatus(null));
   }, [entity, id]);
 
-  async function run() {
+  // Güncelle: 10 ajan ekranı açılır, analiz ajanların gözüyle yeniden çalışır.
+  async function runAgents(a: string) {
     setBusy(true);
     setErr(null);
     try {
-      // Kısa bekleme: avukat analizin yeniden çalıştığını görsün.
-      const [r] = await Promise.all([api<RefreshResult>(`/refresh/${entity}/${id}`, { method: 'POST' }), new Promise((ok) => setTimeout(ok, 700))]);
+      const r = await api<RefreshResult>(`/refresh/${entity}/${id}`, { body: { analysis: a } });
       setResult(r);
-      setOpen(true);
       setStatus({ engine: r.engine, stale: false, last: { engine: r.engine, at: r.at, risk: r.current.risk, band: r.current.band, user_name: '', issues: r.current.issues.length } });
       onDone?.();
-    } catch (e) {
-      setErr((e as Error).message);
+      return toAgentReview(r, entity);
     } finally {
       setBusy(false);
     }
@@ -128,11 +188,25 @@ export function RefreshBar({ entity, id, onDone }: { entity: Entity; id: number;
             {open ? 'Sonucu gizle' : 'Sonucu göster'}
           </button>
         )}
-        <button className={status?.stale ? 'primary' : ''} disabled={busy} onClick={run}>
-          {busy ? <span className="disc-spinner" /> : <Icon name="refresh" />} Güncelle
+        <button className={status?.stale ? 'primary' : ''} disabled={busy} onClick={() => setScreen(true)} title="10 ajan dosyayı yeniden inceler">
+          {busy ? <span className="disc-spinner" /> : <Icon name="refresh" />} Güncelle · 10 ajan
         </button>
       </div>
       {busy && <div className="rf-progress" aria-hidden="true" />}
+      {screen && (
+        <DisciplineScreen
+          body=""
+          title={result?.current.title ?? ENTITY_LABEL[entity]}
+          heading={`${ENTITY_LABEL[entity]} analizi`}
+          module={ENTITY_MODULE[entity]}
+          initialAnalysis={analysis}
+          runner={(a) => runAgents(a)}
+          onClose={() => {
+            setScreen(false);
+            setOpen(true);
+          }}
+        />
+      )}
       <ErrorText error={err} />
       {result && open && (
         <div className="rf-result">
@@ -233,7 +307,7 @@ export function RefreshAllButton({ entities, go, onDone }: { entities?: Entity[]
   }
   function open(c: AllResult['changed'][number]) {
     setRes(null);
-    go(c.entity === 'case' ? { name: 'case', id: c.id } : c.entity === 'contract' ? { name: 'contract', id: c.id } : { name: 'contract-group', id: c.id });
+    go(c.entity === 'case' ? { name: 'case', id: c.id } : c.entity === 'contract' ? { name: 'contract', id: c.id } : c.entity === 'icra' ? { name: 'enforcement-file', id: c.id } : { name: 'contract-group', id: c.id });
   }
   return (
     <>

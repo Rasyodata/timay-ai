@@ -461,7 +461,7 @@ function CasePetitions({ caseId, go, areas, defaultArea }: { caseId: number; go:
           {!area && <p className="muted small">Alan seçince şablonlar listelenir.</p>}
         </Card>
         <Card title="Yeni belge oluştur">
-          <p className="muted small">Türü seçin; iskelet hazırlanır ve 8 disiplinli inceleme ekranı açılır.</p>
+          <p className="muted small">Türü seçin; iskelet hazırlanır ve 10 ajanlı inceleme ekranı açılır.</p>
           <div className="doc-kind-grid">
             {DOC_KIND_OPTIONS.map((k) => (
               <button key={k.id} type="button" className={kind === k.id ? 'active' : ''} onClick={() => setKind(k.id)}>
