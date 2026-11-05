@@ -80,6 +80,11 @@ const ssoParam = (() => {
   return token && kaynak ? { token, kaynak } : null;
 })();
 
+// Platform içinde (iframe) şifresiz açıldıysa: kendi sol menüsü gizlenir, menü platformun sol çubuğunda gösterilir.
+// Platform adresi yalnız tek oturum doğrulandıktan sonra kaydedilir; mesajlar yalnız bu adresle alınıp verilir.
+const GOMULU_ANAHTAR = 'timay-gomulu';
+let gomuluKaynak: string | null = window.parent !== window ? sessionStorage.getItem(GOMULU_ANAHTAR) : null;
+
 export function App() {
   const [user, setUser] = useState<User | null>(null);
   const [checking, setChecking] = useState(hasToken() || ssoParam !== null);
@@ -90,7 +95,11 @@ export function App() {
       // belge adresten silinir (tek kullanımlık; geçmişte ve yenilemede kalmasın)
       window.history.replaceState(null, '', window.location.pathname + window.location.search);
       api<{ token: string; user: User }>('/sso', { body: ssoParam })
-        .then((r) => { setToken(r.token); setUser(r.user); })
+        .then((r) => {
+          setToken(r.token);
+          if (window.parent !== window) { gomuluKaynak = ssoParam.kaynak; sessionStorage.setItem(GOMULU_ANAHTAR, ssoParam.kaynak); }
+          setUser(r.user);
+        })
         .catch((e: Error) => { setToken(null); setSsoError(e.message); })
         .finally(() => setChecking(false));
       return;
@@ -313,6 +322,32 @@ function Shell({ user, onLogout, onUser }: { user: User; onLogout: () => void; o
     document.querySelector('main.content')?.scrollTo(0, 0);
   };
   const active = PARENT[view.name] ?? view.name;
+  const izinli = (item: { name: View['name'] }) =>
+    (item.name !== 'finance' || user.can_finance) && (item.name !== 'backup' || user.is_admin) && (item.name !== 'ceo' || user.is_ceo || user.is_admin);
+
+  // platform içinde: menü ve etkin sayfa platforma bildirilir; platformdan gelen "şu sayfaya git" uygulanır
+  useEffect(() => {
+    if (!gomuluKaynak) return;
+    const kaynak = gomuluKaynak;
+    const menuGonder = () =>
+      window.parent.postMessage({
+        tip: 'timay-menu',
+        gruplar: NAV.map((g) => ({ baslik: g.section, ogeler: g.items.filter(izinli).map((i) => ({ ad: i.label, view: i.name })) })).filter((g) => g.ogeler.length),
+        kullanici: { ad: user.name, rol: user.is_ceo ? 'CEO' : roleTitle(user) },
+      }, kaynak);
+    const dinle = (e: MessageEvent) => {
+      if (e.origin !== kaynak || e.source !== window.parent) return;
+      const d = e.data as { tip?: string; view?: string };
+      if (d?.tip === 'timay-git' && NAV.some((g) => g.items.some((i) => i.name === d.view && izinli(i)))) go({ name: d.view } as View);
+      if (d?.tip === 'timay-menu-iste') menuGonder();
+    };
+    window.addEventListener('message', dinle);
+    menuGonder();
+    return () => window.removeEventListener('message', dinle);
+  }, [user]);
+  useEffect(() => {
+    if (gomuluKaynak) window.parent.postMessage({ tip: 'timay-aktif', view: active }, gomuluKaynak);
+  }, [active]);
 
   // Ctrl+K: her sayfadan aramaya.
   useEffect(() => {
@@ -444,8 +479,8 @@ function Shell({ user, onLogout, onUser }: { user: User; onLogout: () => void; o
   }
 
   return (
-    <div className="shell">
-      <nav className="sidebar">
+    <div className={gomuluKaynak ? 'shell gomulu' : 'shell'}>
+      {!gomuluKaynak && <nav className="sidebar">
         <div className="logo">
           <span className="logo-mark">T</span>
           <span className="logo-text">
@@ -458,12 +493,7 @@ function Shell({ user, onLogout, onUser }: { user: User; onLogout: () => void; o
           <div key={group.section} className="nav-group">
             <div className="nav-section">{group.section}</div>
             {group.items
-              .filter(
-                (item) =>
-                  (item.name !== 'finance' || user.can_finance) &&
-                  (item.name !== 'backup' || user.is_admin) &&
-                  (item.name !== 'ceo' || user.is_ceo || user.is_admin),
-              )
+              .filter(izinli)
               .map((item) => (
               <button
                 key={item.name}
@@ -499,7 +529,7 @@ function Shell({ user, onLogout, onUser }: { user: User; onLogout: () => void; o
             <Icon name="logout" />
           </button>
         </div>
-      </nav>
+      </nav>}
       <main className="content">
         <ConnectionBanner onSettings={() => setGate(true)} onReconnected={() => setReloadKey((k) => k + 1)} />
         <UpdateBanner />
