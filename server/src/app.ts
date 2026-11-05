@@ -421,8 +421,10 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; a
   const webDir = options.webDir ?? null;
   if (webDir) {
     app.get('/uygulama', (req, res, next) => (req.originalUrl === '/uygulama' ? res.redirect('/uygulama/') : next()));
-    app.use('/uygulama', express.static(webDir, { index: 'index.html', maxAge: '1h' }));
-    app.get('/uygulama/{*rest}', (_req, res) => res.sendFile(join(webDir, 'index.html')));
+    // index.html önbelleğe alınmaz (güncelleme hemen yansısın); adı içeriğe göre değişen dosyalar (assets) 1 saat önbellekte
+    const sayfaOnbellek = (res: Response, path: string) => { if (path.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache'); };
+    app.use('/uygulama', express.static(webDir, { index: 'index.html', maxAge: '1h', setHeaders: sayfaOnbellek }));
+    app.get('/uygulama/{*rest}', (_req, res) => { res.setHeader('Cache-Control', 'no-cache'); res.sendFile(join(webDir, 'index.html')); });
     app.get('/', (_req, res) => res.redirect('/uygulama/'));
   }
 
