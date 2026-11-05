@@ -38,7 +38,7 @@ function verifyPassword(password: string, stored: string): boolean {
   return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
-function newSession(db: DB, userId: number): string {
+export function newSession(db: DB, userId: number): string {
   const token = randomBytes(32).toString('hex');
   db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, userId);
   return token;

@@ -2,6 +2,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import { join } from 'node:path';
 import * as agendaMod from './agenda.ts';
 import * as auth from './auth.ts';
+import * as sso from './sso.ts';
 import * as cases from './cases.ts';
 import * as consultancy from './consultancy.ts';
 import * as clm from './clm.ts';
@@ -87,6 +88,8 @@ export function createApp(db: DB, options: { deepChecker?: DeepChecker | null; a
 
   app.post('/api/register', open((req) => auth.registerOffice(db, req.body)));
   app.post('/api/login', open((req) => auth.login(db, req.body)));
+  // platformdan tek oturum: imzalı giriş belgesiyle şifresiz giriş (bkz. sso.ts)
+  app.post('/api/sso', async (req, res) => res.json(await sso.ssoLogin(db, req.body ?? {}, (options.fetch as unknown as sso.Fetch | undefined) ?? (globalThis.fetch as unknown as sso.Fetch))));
   app.post('/api/invites/accept', open((req) => auth.acceptInvite(db, req.body)));
   app.get('/api/me', authed((_req, user) => user));
   app.get('/api/users', authed((_req, user) => auth.listOfficeUsers(db, user.office_id)));

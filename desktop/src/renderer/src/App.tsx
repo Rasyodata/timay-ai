@@ -73,11 +73,28 @@ export type View =
 
 export type Go = (view: View) => void;
 
+// Platformdan tek oturum: adres #sso=<belge>&kaynak=<platform> ile açılırsa şifre sorulmadan giriş yapılır.
+const ssoParam = (() => {
+  const p = new URLSearchParams(window.location.hash.slice(1));
+  const token = p.get('sso'), kaynak = p.get('kaynak');
+  return token && kaynak ? { token, kaynak } : null;
+})();
+
 export function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [checking, setChecking] = useState(hasToken());
+  const [checking, setChecking] = useState(hasToken() || ssoParam !== null);
+  const [ssoError, setSsoError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (ssoParam) {
+      // belge adresten silinir (tek kullanımlık; geçmişte ve yenilemede kalmasın)
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      api<{ token: string; user: User }>('/sso', { body: ssoParam })
+        .then((r) => { setToken(r.token); setUser(r.user); })
+        .catch((e: Error) => { setToken(null); setSsoError(e.message); })
+        .finally(() => setChecking(false));
+      return;
+    }
     if (!hasToken()) return;
     api<User>('/me')
       .then(setUser)
@@ -86,6 +103,7 @@ export function App() {
   }, []);
 
   if (checking) return <div className="splash">Timay Platform Hukuk Yazılımı</div>;
+  if (ssoError) return <div className="splash">Platform girişi doğrulanamadı: {ssoError}</div>;
   if (!user) return <AuthScreen onLogin={setUser} />;
   return (
     <Shell

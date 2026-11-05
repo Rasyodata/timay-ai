@@ -642,6 +642,12 @@ function migrate(db: DB) {
   }
   if (!userColumns.includes('is_ceo')) db.exec('ALTER TABLE users ADD COLUMN is_ceo INTEGER NOT NULL DEFAULT 0');
   if (!userColumns.includes('must_change_password')) db.exec('ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0');
+  // platformdan tek oturum (SSO): platform şirketi ↔ büro, platform kullanıcısı ↔ kullanıcı eşlemesi
+  if (!userColumns.includes('external_ref')) db.exec('ALTER TABLE users ADD COLUMN external_ref TEXT');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ux_users_external_ref ON users (external_ref) WHERE external_ref IS NOT NULL');
+  const officeColumns = (db.prepare('PRAGMA table_info(offices)').all() as { name: string }[]).map((c) => c.name);
+  if (!officeColumns.includes('external_ref')) db.exec('ALTER TABLE offices ADD COLUMN external_ref TEXT');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ux_offices_external_ref ON offices (external_ref) WHERE external_ref IS NOT NULL');
   if (!userColumns.includes('all_cases')) db.exec('ALTER TABLE users ADD COLUMN all_cases INTEGER NOT NULL DEFAULT 1');
 
   const contractColumns = (db.prepare('PRAGMA table_info(contracts)').all() as { name: string }[]).map((c) => c.name);
